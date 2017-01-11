@@ -32,6 +32,19 @@ The TABC (Texas Alcoholic Beverage Commission) Mixed Beverage Tax is a fixed tax
 
 The APD Chief's Monthly Report is a high-level summary of crime in Austin for the month, including counts for high-profile crimes including DWI.  It has no time-of-day or location information, and no info other than just that a DWI occured, but is another source of data to compare to the incident reports, which may be spotty.
 
+Here are some important dates:
+
+March 2013 : Uber is around for SXSW.
+March 2014 : Uber is around for SXSW.
+
+June 4, 2014 : Uber launches in Austin.
+https://twitter.com/Uber_ATX/status/474199740217716736
+
+June 3, 2014: Lyft launches in Austin.
+https://twitter.com/AustinLyft/status/473857057720766464
+
+May 9, 2016: Uber and Lyft stop giving rides in Austin.
+
 You can find the same data I used here:
 1) https://data.austintexas.gov/browse?q=apd&sortBy=relevance
 2) https://www.comptroller.texas.gov/transparency/open-data/search-datasets/
@@ -118,13 +131,13 @@ label.months <- c('J','F','M','A','M','J','J','A','S','O','N','D')
 
 ggplot(data=dwi.monthly, aes(x = date, y = count, group = year, color = factor(year))) + geom_point()
 
-ggplot(data=dwi.monthly, aes(x = (month(date)), y = count, group = year, color = factor(year))) + geom_line() + scale_x_continuous( breaks = 1:12, labels = label.months)
+ggplot(data=dwi.monthly, aes(x = (month(date)), y = count, group = year, color = factor(year))) + geom_smooth(se = FALSE) + scale_x_continuous( breaks = 1:12, labels = label.months)
 
 ```
 
-So we can get a sense that, for the years 2008-2011, monthly DWI's seem to be decreasing (good job APD), and any monthly trend doesn't really jump out at us (there might be one in December). 
+So we can get a sense that, for the years 2008-2011, monthly DWI's seem to be decreasing (good job APD), and as for a monthly trend there might be seasonal peaks in January, December, and maybe August? 
 
-Now, I'm curious to see how the Chief's Monthly Report compares.
+Now, I'm curious to see how the Chief's Monthly Report compares.  Let's mark when Uber was operating.
 
 ```{r}
 
@@ -134,9 +147,11 @@ apd.raw$month <- month(apd.raw$date)
 
 apd.monthly <- apd.raw
   
-ggplot(data=apd.monthly, aes(x = date, y = dwi, group = year, color = factor(year))) + geom_point()
+uber <- geom_rect(mapping = aes(xmin=as.Date('2014-06-01'), xmax = as.Date('2016-05-01')), ymin=-Inf, ymax=+Inf, color="grey20", alpha=0.3, inherit.aes = FALSE)
 
-ggplot(data=apd.monthly, aes(x = (month(date)), y = dwi, group = year, color = factor(year))) + geom_line() + scale_x_continuous( breaks = 1:12, labels = label.months)
+ggplot(data=apd.monthly, aes(x = date, y = dwi, color = factor(year))) + uber + geom_point() 
+
+ggplot(data=apd.monthly, aes(x = (month(date)), y = dwi, group = year, color = factor(year))) + geom_smooth(se = FALSE) + scale_x_continuous( breaks = 1:12, labels = label.months)
 
 
 ```
