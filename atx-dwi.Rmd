@@ -115,7 +115,7 @@ ggplot(data=dwi.monthly, aes(x = (month(date)), y = count, group = year, color =
 
 ```
 
-So we can get a sense that, for the years 2008-2011, monthly DWI's seem to be decreasing (good job APD), and any monthly trend doesn't really jump out at us.  
+So we can get a sense that, for the years 2008-2011, monthly DWI's seem to be decreasing (good job APD), and any monthly trend doesn't really jump out at us (there might be one in December). 
 
 Let's have a look at what's going on with the TABC data.  Here's what a few row look like:
 
@@ -128,8 +128,9 @@ Let's do the same all-time and then year-over-year plots to get a sense of what'
 There's a lone data point from 1999, let's clean that up too, and let's scale revenues into the millions of dollars.
 
 ```{r warning=FALSE}
-
 tabc.monthly <- tabc.raw[-40,] 
+
+tabc.monthly$date <- as.Date(tabc.monthly$date)
 
 tabc.monthly$year <- year(tabc.monthly$date)
 tabc.monthly$month <- month(tabc.monthly$date)
@@ -141,3 +142,21 @@ ggplot(data=tabc.monthly, aes(x = (month(date)), y = rev, group = year, color = 
 ```
 
 Look at that growth!  Notice that spike in March?  That's SXSW, a major annual music, technology, and film conference.  See that spike in October?  That's Austin City Limits, a major music festival.  
+
+Let's see about a new variable - DWI per Millions of Dollars Bar Revenue.
+
+```{r warning = FALSE}
+dwi.monthly$date <- as.Date(dwi.monthly$date)
+tabc.monthly$date <- as.Date(tabc.monthly$date)
+
+dpr.monthly <- merge(dwi.monthly,tabc.monthly, by = 'date')
+dpr.monthly$dwi_per_mm <- dpr.monthly$count/dpr.monthly$rev
+
+ggplot(data=dpr.monthly, aes(x = date, y = dwi_per_mm, group = year.x, color = factor(year.x))) + geom_point()
+
+ggplot(data=dpr.monthly, aes(x = rev, y = count, color = year.x)) + geom_point() + geom_smooth(method = "lm")
+
+summary(lm(data = dpr.monthly, count ~ rev))
+
+```
+
