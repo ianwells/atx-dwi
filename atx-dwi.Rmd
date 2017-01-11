@@ -1,0 +1,143 @@
+---
+  title: 'DWI Rates, TABC Mixed Beverage Taxes, and Uber, in Austin, TX'
+  output: html_document
+---
+
+```{r include = FALSE}    
+library(ggplot2)
+library(dplyr)
+library(knitr)
+library(lubridate)
+```
+So, as you may or may not know, Uber and Lyft, America's two premiere ridesharing services, stopped offering rides in Austin, TX as of May 9, 2016 after a contentious public vote which you can read about here: http://www.bizjournals.com/austin/news/2016/05/07/uber-lyft-defeated-in-prop-1-referendum.html
+
+A common argument is that the presence of ride-sharing services such as Uber or Lyft decreases the incidence of drunken driving in a city in which they operate; it sounds reasonable enough to say that if there are more options for getting home after a drink or two or ten, at least one of them might be more attractive than driving home in a potentially compromised state.
+
+There have been a few articles and a couple papers studying the effect of the availability of ridesharing services on drunk driving (see references below), but in my opinion they fall short in one or more ways:
+
+1) They fail to count all available records of drunk driving (like if, say, a study only counted drunk driving fatalities)
+2) They fail to account for trends in drunk driving frequency (like if, say, more people than average drove drunk on certain holidays) 
+3) They fail to control for exogenous effects on drunk driving frequency (like if, say, the population of a core drinking demographic increased)
+4) They fail to properly treat the regression disontinuity between data before and after May 9, 2016 (more on this later)
+
+I've managed to get ahold of two datasets that I think will be helpful:
+  
+1) APD Incident Reports for 2008-2011, Jan-July 2015, Jan-July 2016 (including a number of intoxication-related crimes)
+2) TABC Mixed Beverage Tax Receipts for Austin, 2008-2016.
+
+The APD (Austin Police Department) Incident Reports are publicy available for years 2008-2011, and for 'YTD' which supposedly includes the last 18 months of reported crime in Austin but actually only includes 8 months of 2016 and a small number of reports from 2015.  I was able to obtain an archived version of the data from late 2015 (https://durs.carto.com/tables/apd_incident_extract_2015csv/public), which has more complete data for Jan-Jul 2015.  It's fair to note that these are not *convictions*, so potentially the number of actual drunk driving incidents is lower - although I'm sure there are people who drive drunk and manage to get home safe without encountering the police.  We may have to do without perfect data on how many people are really driving drunk.
+
+The TABC (Texas Alcoholic Beverage Commission) Mixed Beverage Tax is a fixed tax charged on alcoholic beverages sold by a holder of a Mixed Beverage License in the state of Texas.  I've had some fun with this data in the past (see references)!  One of my assumptions is that Mixed Beverage Tax revenues are a good proxy for Units of Alcohol Consumed by Persons at a Place They Had to Travel To, or at least is very correlated with this, assuming an even distribution over time of the price of alcohol (I will control for inflation), the popularity of establishments that hold a Mixed Beverage License vs just a beer-and-wine license (I don't have tax data for these), and the popularity of going out vs drinking at someone's home.  Like with the APD data, what we've got is what we've got.
+
+You can find the same data I used here:
+1) https://data.austintexas.gov/browse?q=apd&sortBy=relevance
+2) https://www.comptroller.texas.gov/transparency/open-data/search-datasets/
+
+Or you can contact me directly.
+
+Alright, Let's get to it.  A note: I won't spend a lot of time on boilerplate formating and data-cleaning.
+
+```{r include = FALSE}
+setwd('/Users/ianwells/sandbox/atx-dwi/')
+dwi.raw <- read.csv('data/dwi-raw-nohitandrun-nodre.csv')
+
+sapply(dwi.raw,class)
+head(dwi.raw)
+dwi.raw$date <- parse_date_time(dwi.raw$date,'%Y-%m-%d %H:%M:%S',tz ='America/Chicago')
+
+har.raw <- read.csv('data/hitandrun-raw.csv')
+
+sapply(har.raw,class)
+head(har.raw)
+har.raw$date <- parse_date_time(har.raw$date,'%Y-%m-%d %H:%M:%S',tz ='America/Chicago')
+
+
+tabc.raw <- read.csv('data/tabc-raw.csv')
+sapply(tabc.raw,class)
+tabc.raw$date <- parse_date_time(tabc.raw$date,'%Y-%m-%d %H:%M:%S', tz = 'America/Chicago')
+```
+
+Here's a quick glimpse of what the raw APD data looks like:
+
+```{r}
+sample_n(dwi.raw,10)
+```
+
+Cool.  We have a bunch of crimes, pre-filtered to intoxication-related ones and the time they approximately occured.
+
+You can check this against the full list of crimes availible to commit in Austin, which is available on that same Austin Data Portal site, I'm not including it here because it's quite long, please trust that I've got all of them.
+
+```{r}
+levels(dwi.raw$crime)
+```
+
+If you're familar with this data set you'll notice I've removed a few crimes:
+
+1) `BOATING WHILE INTOXICATED` - This rare crime doesn't seem like it could be avoided by hailing an Uber.
+2) `DWI - DRUG RECOGNITION EXPERT` - You don't have to have any alcohol in your system to be charged with a DWI: in this case, an officer certified in recognizing the effects of some other substance has decided you shouldn't be driving.  While I imagine you could avoid trouble by hailing a ride in this case, I don't think I could relate it to bar sales, so this stat is going to be relegated to some other study.
+3) `CRASH/LEAVING THE SCENE` - This is a tricky one.  Certainly a non-zero percentage of hit-and-run offenses are commited by drunk drivers, but this charge doesn't offer any more details, and worse, there are more of this kind of crime than all the others put together.  How should we count them, if at all?  For now, let's leave them all out, as they're not counted in offical DWI tallies.  We might be able to project how many of these crimes involve alcohol at a later date, based on when and where they occured, but we'll leave that for another analysis.
+
+Let's take a look at the relative frequency of these offenses.
+
+```{r warning= FALSE}
+qplot(hour(date), data=dwi.raw, geom="histogram", bins = 24)
+```
+
+Perhaps not surprisingly, nearly all DWI offenses occur between 8 PM and 5 AM.
+
+```{r warning= FALSE}
+qplot(wday(date,label = TRUE), data=dwi.raw, bins = 7)
+```
+
+Again, looks like Fridays and Saturdays are popular days to get caught drunk driving.
+
+Let's get down to business.  We'll total everything up by month and see how it looks.
+
+Note: we have incomplete data for July 2015 and August 2016, as well as an old offense in 2014, so we'll remove those months now.
+
+```{r  warning= FALSE}
+dwi.raw$year <- year(dwi.raw$date)
+dwi.raw$month <- month(dwi.raw$date)
+  
+dwi.monthly <- dwi.raw %>% group_by(year,month)
+dwi.monthly <- summarize(dwi.monthly,count=n())
+dwi.monthly$date <- as.Date(paste0(dwi.monthly$year,'-',dwi.monthly$month,'-01'))
+
+dwi.monthly <- dwi.monthly[-56,] 
+dwi.monthly <- dwi.monthly[-63,] 
+dwi.monthly <- dwi.monthly[-49,] 
+
+label.months <- c('J','F','M','A','M','J','J','A','S','O','N','D')
+
+ggplot(data=dwi.monthly, aes(x = date, y = count, group = year, color = factor(year))) + geom_point()
+
+ggplot(data=dwi.monthly, aes(x = (month(date)), y = count, group = year, color = factor(year))) + geom_line() + scale_x_continuous( breaks = 1:12, labels = label.months)
+
+```
+
+So we can get a sense that, for the years 2008-2011, monthly DWI's seem to be decreasing (good job APD), and any monthly trend doesn't really jump out at us.  
+
+Let's have a look at what's going on with the TABC data.  Here's what a few row look like:
+
+```{r}
+sample_n(tabc.raw,10)
+```
+
+Let's do the same all-time and then year-over-year plots to get a sense of what's in there.
+
+There's a lone data point from 1999, let's clean that up too, and let's scale revenues into the millions of dollars.
+
+```{r warning=FALSE}
+
+tabc.monthly <- tabc.raw[-40,] 
+
+tabc.monthly$year <- year(tabc.monthly$date)
+tabc.monthly$month <- month(tabc.monthly$date)
+tabc.monthly$rev <- round(tabc.monthly$rev/1000000,2)
+
+ggplot(data=tabc.monthly, aes(x = date, y = rev, group = year, color = factor(year))) + geom_point()
+
+ggplot(data=tabc.monthly, aes(x = (month(date)), y = rev, group = year, color = factor(year))) + geom_line() + scale_x_continuous( breaks = 1:12, labels = label.months)
+```
+
+Look at that growth!  Notice that spike in March?  That's SXSW, a major annual music, technology, and film conference.  See that spike in October?  That's Austin City Limits, a major music festival.  
