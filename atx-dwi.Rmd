@@ -20,18 +20,22 @@ There have been a few articles and a couple papers studying the effect of the av
 3) They fail to control for exogenous effects on drunk driving frequency (like if, say, the population of a core drinking demographic increased)
 4) They fail to properly treat the regression disontinuity between data before and after May 9, 2016 (more on this later)
 
-I've managed to get ahold of two datasets that I think will be helpful:
+I've managed to get ahold of three datasets that I think will be helpful:
   
 1) APD Incident Reports for 2008-2011, Jan-July 2015, Jan-July 2016 (including a number of intoxication-related crimes)
 2) TABC Mixed Beverage Tax Receipts for Austin, 2008-2016.
+3) APD Chief's Monthly Reports, 2010-2016, with DWI numbers per month.
 
 The APD (Austin Police Department) Incident Reports are publicy available for years 2008-2011, and for 'YTD' which supposedly includes the last 18 months of reported crime in Austin but actually only includes 8 months of 2016 and a small number of reports from 2015.  I was able to obtain an archived version of the data from late 2015 (https://durs.carto.com/tables/apd_incident_extract_2015csv/public), which has more complete data for Jan-Jul 2015.  It's fair to note that these are not *convictions*, so potentially the number of actual drunk driving incidents is lower - although I'm sure there are people who drive drunk and manage to get home safe without encountering the police.  We may have to do without perfect data on how many people are really driving drunk.
 
 The TABC (Texas Alcoholic Beverage Commission) Mixed Beverage Tax is a fixed tax charged on alcoholic beverages sold by a holder of a Mixed Beverage License in the state of Texas.  I've had some fun with this data in the past (see references)!  One of my assumptions is that Mixed Beverage Tax revenues are a good proxy for Units of Alcohol Consumed by Persons at a Place They Had to Travel To, or at least is very correlated with this, assuming an even distribution over time of the price of alcohol (I will control for inflation), the popularity of establishments that hold a Mixed Beverage License vs just a beer-and-wine license (I don't have tax data for these), and the popularity of going out vs drinking at someone's home.  Like with the APD data, what we've got is what we've got.
 
+The APD Chief's Monthly Report is a high-level summary of crime in Austin for the month, including counts for high-profile crimes including DWI.  It has no time-of-day or location information, and no info other than just that a DWI occured, but is another source of data to compare to the incident reports, which may be spotty.
+
 You can find the same data I used here:
 1) https://data.austintexas.gov/browse?q=apd&sortBy=relevance
 2) https://www.comptroller.texas.gov/transparency/open-data/search-datasets/
+3) https://austintexas.gov/page/chiefs-monthly-reports
 
 Or you can contact me directly.
 
@@ -55,6 +59,9 @@ har.raw$date <- parse_date_time(har.raw$date,'%Y-%m-%d %H:%M:%S',tz ='America/Ch
 tabc.raw <- read.csv('data/tabc-raw.csv')
 sapply(tabc.raw,class)
 tabc.raw$date <- parse_date_time(tabc.raw$date,'%Y-%m-%d %H:%M:%S', tz = 'America/Chicago')
+
+apd.raw <- read.csv('data/chief-report-raw.csv')
+
 ```
 
 Here's a quick glimpse of what the raw APD data looks like:
@@ -116,6 +123,25 @@ ggplot(data=dwi.monthly, aes(x = (month(date)), y = count, group = year, color =
 ```
 
 So we can get a sense that, for the years 2008-2011, monthly DWI's seem to be decreasing (good job APD), and any monthly trend doesn't really jump out at us (there might be one in December). 
+
+Now, I'm curious to see how the Chief's Monthly Report compares.
+
+```{r}
+
+apd.raw$date <- as.Date(apd.raw$date)
+apd.raw$year <- year(apd.raw$date)
+apd.raw$month <- month(apd.raw$date)
+
+apd.monthly <- apd.raw
+  
+ggplot(data=apd.monthly, aes(x = date, y = dwi, group = year, color = factor(year))) + geom_point()
+
+ggplot(data=apd.monthly, aes(x = (month(date)), y = dwi, group = year, color = factor(year))) + geom_line() + scale_x_continuous( breaks = 1:12, labels = label.months)
+
+
+```
+
+
 
 Let's have a look at what's going on with the TABC data.  Here's what a few row look like:
 
