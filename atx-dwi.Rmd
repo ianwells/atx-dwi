@@ -1,5 +1,5 @@
 ---
-  title: 'DWI Rates, TABC Mixed Beverage Taxes, and Uber, in Austin, TX'
+  title: 'DWI Arrests, TABC Mixed Beverage Taxes, and Ridesharing, in Austin, TX'
   output: html_document
 ---
 
@@ -8,7 +8,11 @@ library(ggplot2)
 library(dplyr)
 library(knitr)
 library(lubridate)
+library(reshape)
 ```
+
+##Background
+
 So, as you may or may not know, Uber and Lyft, America's two premiere ridesharing services, stopped offering rides in Austin, TX as of May 9, 2016 after a contentious public vote which you can read about here: http://www.bizjournals.com/austin/news/2016/05/07/uber-lyft-defeated-in-prop-1-referendum.html
 
 A common argument is that the presence of ride-sharing services such as Uber or Lyft decreases the incidence of drunken driving in a city in which they operate; it sounds reasonable enough to say that if there are more options for getting home after a drink or two or ten, at least one of them might be more attractive than driving home in a potentially compromised state.
@@ -52,7 +56,11 @@ You can find the same data I used here:
 
 Or you can contact me directly.
 
-Alright, Let's get to it.  A note: I won't spend a lot of time on boilerplate formating and data-cleaning.
+Alright, Let's get to it.
+
+#The Data
+
+##DWI Arrests
 
 ```{r include = FALSE}
 setwd('/Users/ianwells/sandbox/atx-dwi/')
@@ -111,7 +119,7 @@ qplot(wday(date,label = TRUE), data=dwi.raw, bins = 7)
 
 Again, looks like Fridays and Saturdays are popular days to get caught drunk driving.
 
-Let's get down to business.  We'll total everything up by month and see how it looks.
+Let's get down to business.  We'll total everything up by month and see how it looks.  We're going to look at the whole series, and then each year stacked year-over-year, with a local regression applied to see if we can detect a yearly trend, as you might expect some months to be busier than others.
 
 Note: we have incomplete data for July 2015 and August 2016, as well as an old offense in 2014, so we'll remove those months now.
 
@@ -129,15 +137,15 @@ dwi.monthly <- dwi.monthly[-49,]
 
 label.months <- c('J','F','M','A','M','J','J','A','S','O','N','D')
 
-ggplot(data=dwi.monthly, aes(x = date, y = count, group = year, color = factor(year))) + geom_point()
+ggplot(data=dwi.monthly, aes(x = date, y = count, group = year(date), color = factor(year(date)))) + geom_point()
 
-ggplot(data=dwi.monthly, aes(x = (month(date)), y = count, group = year, color = factor(year))) + geom_smooth(se = FALSE) + scale_x_continuous( breaks = 1:12, labels = label.months)
+ggplot(data=dwi.monthly, aes(x = (month(date)), y = count, group = year(date), color = factor(year(date)))) + geom_smooth(se = FALSE) + scale_x_continuous( breaks = 1:12, labels = label.months)
 
 ```
 
-So we can get a sense that, for the years 2008-2011, monthly DWI's seem to be decreasing (good job APD), and as for a monthly trend there might be seasonal peaks in January, December, and maybe August? 
+So we can get a sense that, for the years 2008-2011, monthly DWI's seem to be decreasing (good job APD), and as for a monthly trend there might be seasonal peaks in January, December, and maybe August.
 
-Now, I'm curious to see how the Chief's Monthly Report compares.  Let's mark when Uber was operating.
+Now, I'm curious to see how the Chief's Monthly Report compares.
 
 ```{r}
 
@@ -149,16 +157,54 @@ apd.monthly <- apd.raw
   
 uber <- geom_rect(mapping = aes(xmin=as.Date('2014-06-01'), xmax = as.Date('2016-05-01')), ymin=-Inf, ymax=+Inf, color="grey20", alpha=0.3, inherit.aes = FALSE)
 
-ggplot(data=apd.monthly, aes(x = date, y = dwi, color = factor(year))) + uber + geom_point() 
+ggplot(data=apd.monthly, aes(x = date, y = count, color = factor(year))) + geom_point() 
 
-ggplot(data=apd.monthly, aes(x = (month(date)), y = dwi, group = year, color = factor(year))) + geom_smooth(se = FALSE) + scale_x_continuous( breaks = 1:12, labels = label.months)
+ggplot(data=apd.monthly, aes(x = month, y = count, group = year, color = factor(year))) + geom_smooth(se = FALSE) + scale_x_continuous(breaks = 1:12, labels = label.months)
 
 
 ```
 
+We're seeing some similar periodicity within years.  Let's plot both at the same time.
 
+```{r}
 
-Let's have a look at what's going on with the TABC data.  Here's what a few row look like:
+both.monthly <- merge(apd.monthly,dwi.monthly, by = 'date', all = TRUE);
+both.monthly$apd <- both.monthly$count.x
+both.monthly$dwi <- both.monthly$count.y
+
+both.monthly <- select(both.monthly,date,apd,dwi)
+both.melted <-melt(both.monthly, id.vars="date")
+
+ggplot(data=both.melted, mapping = aes(x=date,y=value, color = variable)) + geom_point()
+```
+
+Okay, so it looks like the chief's report is a little different than the incident report database.  That's annoying, but based on the disclaimers on both websites, and that the chief's report is updated more often, I'm going to call it and say the chief's data is what I'm using moving forward.  I'd like those extra two years of data that the database has though - and since the data is so historic, and the difference is so consistent, what I'm going to do is nudge the data up slightly so that it lines up, and use that.
+
+```{r}
+
+both.monthly$diff <- both.monthly$apd - both.monthly$dwi
+mean(filter(both.monthly,date < '2012-01-01', date > '2010-01-01')$diff)
+
+both.monthly.nudge <- both.monthly
+both.monthly.nudge$dwi = both.monthly.nudge$dwi + 15
+
+both.melted.nudge <-melt(both.monthly.nudge, id.vars="date")
+ggplot(data=both.melted.nudge, mapping = aes(x=date,y=value, color = variable)) + geom_point()
+
+```
+
+Alright, that's a little cleaner.  If anyone wants to be really rigorous, this might be a place to look for mistakes.  I've saved out our final data set here to save time.
+
+```{r}
+dwi <- read.csv('data/dwi-final.csv')
+dwi$date <- as.Date(dwi$date)
+```
+
+## TABC Mixed Beverage Tax
+
+Let's have a look at what's going on with the TABC data.  Now, I've already done a bit of work with this data set (tabcmap.s3-website-us-east-1.amazonaws.com), so I've just pulled values from my database of monthly revenues calculated from monthly tax receipts.
+
+Here's what a few rows look like:
 
 ```{r}
 sample_n(tabc.raw,10)
@@ -182,22 +228,71 @@ ggplot(data=tabc.monthly, aes(x = date, y = rev, group = year, color = factor(ye
 ggplot(data=tabc.monthly, aes(x = (month(date)), y = rev, group = year, color = factor(year))) + geom_line() + scale_x_continuous( breaks = 1:12, labels = label.months)
 ```
 
-Look at that growth!  Notice that spike in March?  That's SXSW, a major annual music, technology, and film conference.  See that spike in October?  That's Austin City Limits, a major music festival.  
+Look at that growth!  Notice that spike in March?  That's SXSW, a major annual music, technology, and film conference.  See that spike in October?  That's Austin City Limits, a major music festival.  This data is already good to go, so let's rename it to keep things clean and keep going.
 
-Let's see about a new variable - DWI per Millions of Dollars Bar Revenue.
+```{r}
+tabc <- select(tabc.monthly,date,rev)
+```
+
+##DWI per $MM
+
+Let's see about a new variable - DWI per Millions of Dollars Bar Revenue.  Feature engineering, right?
 
 ```{r warning = FALSE}
-dwi.monthly$date <- as.Date(dwi.monthly$date)
-tabc.monthly$date <- as.Date(tabc.monthly$date)
+dwi <- merge(dwi,tabc, by = 'date')
+dwi$count_per_mm <- dwi$count/dwi$rev
 
-dpr.monthly <- merge(dwi.monthly,tabc.monthly, by = 'date')
-dpr.monthly$dwi_per_mm <- dpr.monthly$count/dpr.monthly$rev
+ggplot(data=dwi, aes(x = date, y = count_per_mm, group = year(date), color = factor(year(date)))) + geom_point()
 
-ggplot(data=dpr.monthly, aes(x = date, y = dwi_per_mm, group = year.x, color = factor(year.x))) + geom_point()
+ggplot(data=dwi, aes(x = rev, y = count, color = year(date))) + geom_point() + geom_smooth(method = "lm")
 
-ggplot(data=dpr.monthly, aes(x = rev, y = count, color = year.x)) + geom_point() + geom_smooth(method = "lm")
-
-summary(lm(data = dpr.monthly, count ~ rev))
+summary(lm(data = dwi, count ~ rev))
 
 ```
+
+So while DWI/$MM is clearly decreasing, it would appear that there's no correlation between DWI counts and bar revenue.  Cool!  We'd maybe expect to see annual DWI spikes in March if there was, but we don't.
+
+#The Analysis
+
+Alright, so now that we've got some data, what can we do with it?  How can we establish one way or the other that the advent of ridesharing affected the number of DWI arrests in Austin?  There are a few things I'm going to look at.
+
+##Holt-Winters Forecasting
+
+Holt-Winters Forecasting is a method of predicting time-series data that has strong periodic components.  We saw above that our DWI data has some yearly trends in it - the data shows it, and you can even Google around for articles about DWI in Austin and see for yourself that January is a special month for the police (look for 'no-refusal weekend').
+
+What I'm going to do is feed DWI data from January 2008 - May 2014 (the last month before Uber and Lyft were widely available in Austin) into a Holt-Winters model and forecast DWI counts for the next few months.  I'm then going to compare those to the actual data, with the reasoning that since the model takes into account yearly cycles and broad trends, it will come up with a prediction for DWI counts as if Uber and Lyft never arrived.  We can call the difference the number of DWI's ridesharing prevented, with some degree of confidence.
+
+```{r}
+
+
+dwi.pre <- filter(dwi,date < '2014-05-31')
+dwi.post <- filter(dwi,date > '2014-05-31')
+
+dwi.pre.count.ts <- ts(dwi.pre$count, start = c(2008, 1), frequency = 12)
+dwi.post.count.ts <- ts(dwi.post$count, start = c(2014, 6), frequency = 12)
+#dwi.rev.ts <- ts(dwi$rev, start = c(2008, 1), frequency = 12)
+
+#plot(dwi.pre.count.ts)
+
+dwi.pre.count.hw <- HoltWinters(dwi.pre.count.ts)
+#plot(dwi.pre.count.hw)
+
+#dwi.rev.hw <- HoltWinters(dwi.rev.ts)
+#plot(dwi.rev.hw)
+
+forecast <- predict(dwi.pre.count.hw, n.ahead = 11, prediction.interval = T, level = 0.9)
+plot(dwi.pre.count.hw, forecast)
+lines(dwi.post.count.ts,col='green')
+
+
+```
+
+
+##Bayesian Structural Time-series
+###With Google CausalImpact
+
+
+##Regression Discontinuity Design
+
+
 
