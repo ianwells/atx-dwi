@@ -1,7 +1,17 @@
 ---
-  title: 'DWI Arrests, TABC Mixed Beverage Taxes, and Ridesharing, in Austin, TX'
-  output: html_document
+title: "DWI Arrests, TABC Mixed Beverage Taxes, and Ridesharing, in Austin, TX"
+output: html_document
+date: 2016-01-12
 ---
+
+#DRAFT DRAFT DRAFT
+
+(Playing along at home?  Here's what you'll need:)
+
+```{r}
+(.packages())
+select <- dplyr::select
+```
 
 ```{r include = FALSE}    
 library(ggplot2)
@@ -9,6 +19,10 @@ library(dplyr)
 library(knitr)
 library(lubridate)
 library(reshape)
+library(CausalImpact)
+library(rddtools)
+
+select <- dplyr::select 
 ```
 
 ##Background
@@ -31,6 +45,8 @@ I've managed to get ahold of three datasets that I think will be helpful:
 3) APD Chief's Monthly Reports, 2010-2016, with DWI numbers per month.
 
 The APD (Austin Police Department) Incident Reports are publicy available for years 2008-2011, and for 'YTD' which supposedly includes the last 18 months of reported crime in Austin but actually only includes 8 months of 2016 and a small number of reports from 2015.  I was able to obtain an archived version of the data from late 2015 (https://durs.carto.com/tables/apd_incident_extract_2015csv/public), which has more complete data for Jan-Jul 2015.  It's fair to note that these are not *convictions*, so potentially the number of actual drunk driving incidents is lower - although I'm sure there are people who drive drunk and manage to get home safe without encountering the police.  We may have to do without perfect data on how many people are really driving drunk.
+
+SOMETHING HERE ABOUT DWI ARRESTS AS A PROXY FOR DRUNK DRIVING
 
 The TABC (Texas Alcoholic Beverage Commission) Mixed Beverage Tax is a fixed tax charged on alcoholic beverages sold by a holder of a Mixed Beverage License in the state of Texas.  I've had some fun with this data in the past (see references)!  One of my assumptions is that Mixed Beverage Tax revenues are a good proxy for Units of Alcohol Consumed by Persons at a Place They Had to Travel To, or at least is very correlated with this, assuming an even distribution over time of the price of alcohol (I will control for inflation), the popularity of establishments that hold a Mixed Beverage License vs just a beer-and-wine license (I don't have tax data for these), and the popularity of going out vs drinking at someone's home.  Like with the APD data, what we've got is what we've got.
 
@@ -139,11 +155,14 @@ label.months <- c('J','F','M','A','M','J','J','A','S','O','N','D')
 
 ggplot(data=dwi.monthly, aes(x = date, y = count, group = year(date), color = factor(year(date)))) + geom_point()
 
-ggplot(data=dwi.monthly, aes(x = (month(date)), y = count, group = year(date), color = factor(year(date)))) + geom_smooth(se = FALSE) + scale_x_continuous( breaks = 1:12, labels = label.months)
+#ggplot(data=dwi.monthly, aes(x = (month(date)), y = count, group = year(date), color = factor(year(date)))) + geom_smooth(se = FALSE) + scale_x_continuous( breaks = 1:12, labels = label.months)
+
+qplot(month(date), data=filter(dwi.monthly,date < '2015-01-01'), geom="histogram", weight = count, bins = 12)
+
 
 ```
 
-So we can get a sense that, for the years 2008-2011, monthly DWI's seem to be decreasing (good job APD), and as for a monthly trend there might be seasonal peaks in January, December, and maybe August.
+So we can get a sense that, for the years 2008-2011, monthly DWI's seem to be decreasing (good job APD), and as for a monthly trend it looks pretty uneven, but not periodic.
 
 Now, I'm curious to see how the Chief's Monthly Report compares.
 
@@ -159,12 +178,13 @@ uber <- geom_rect(mapping = aes(xmin=as.Date('2014-06-01'), xmax = as.Date('2016
 
 ggplot(data=apd.monthly, aes(x = date, y = count, color = factor(year))) + geom_point() 
 
-ggplot(data=apd.monthly, aes(x = month, y = count, group = year, color = factor(year))) + geom_smooth(se = FALSE) + scale_x_continuous(breaks = 1:12, labels = label.months)
+#ggplot(data=apd.monthly, aes(x = month, y = count, group = year, color = factor(year))) + geom_smooth(se = FALSE) + scale_x_continuous(breaks = 1:12, labels = label.months)
 
-
+qplot(month(date), data=apd.monthly, geom="histogram", weight = count, bins = 12)
 ```
 
-We're seeing some similar periodicity within years.  Let's plot both at the same time.
+
+This looks flatter year-over-year, which isn't what I was expecting.  Let's plot both at the same time.
 
 ```{r}
 
@@ -172,10 +192,11 @@ both.monthly <- merge(apd.monthly,dwi.monthly, by = 'date', all = TRUE);
 both.monthly$apd <- both.monthly$count.x
 both.monthly$dwi <- both.monthly$count.y
 
-both.monthly <- select(both.monthly,date,apd,dwi)
+both.monthly <- both.monthly %>% select(date,apd,dwi)
 both.melted <-melt(both.monthly, id.vars="date")
 
 ggplot(data=both.melted, mapping = aes(x=date,y=value, color = variable)) + geom_point()
+
 ```
 
 Okay, so it looks like the chief's report is a little different than the incident report database.  That's annoying, but based on the disclaimers on both websites, and that the chief's report is updated more often, I'm going to call it and say the chief's data is what I'm using moving forward.  I'd like those extra two years of data that the database has though - and since the data is so historic, and the difference is so consistent, what I'm going to do is nudge the data up slightly so that it lines up, and use that.
@@ -225,7 +246,7 @@ tabc.monthly$rev <- round(tabc.monthly$rev/1000000,2)
 
 ggplot(data=tabc.monthly, aes(x = date, y = rev, group = year, color = factor(year))) + geom_point()
 
-ggplot(data=tabc.monthly, aes(x = (month(date)), y = rev, group = year, color = factor(year))) + geom_line() + scale_x_continuous( breaks = 1:12, labels = label.months)
+qplot(month(date), data=tabc.monthly, geom="histogram", weight = rev, bins = 12)
 ```
 
 Look at that growth!  Notice that spike in March?  That's SXSW, a major annual music, technology, and film conference.  See that spike in October?  That's Austin City Limits, a major music festival.  This data is already good to go, so let's rename it to keep things clean and keep going.
@@ -280,19 +301,97 @@ dwi.pre.count.hw <- HoltWinters(dwi.pre.count.ts)
 #dwi.rev.hw <- HoltWinters(dwi.rev.ts)
 #plot(dwi.rev.hw)
 
-forecast <- predict(dwi.pre.count.hw, n.ahead = 11, prediction.interval = T, level = 0.9)
+forecast <- predict(dwi.pre.count.hw, n.ahead = 8, prediction.interval = T, level = 0.7)
 plot(dwi.pre.count.hw, forecast)
 lines(dwi.post.count.ts,col='green')
 
-
 ```
+
+ADD RMSE/EVAL FOR MODEL
+
+The forecast is pretty rough - the data may not have been as periodic as it looked.  For the first 8 months Uber and Lyft were available in Austin, the real cumulative DWI count was 158 less than the predicted count - about 4%.  For the first 3 months, where our confidence interval is much tighter, we're only 24 DWI's less than predicted - a decrease of 1.5%, nothing to write home about at all.  
+
+Let's try the back end - fit a model from data starting from Uber's first month, and then stopping on Uber's last month.  If the prediction is lower than the real data, we might be able to say that ridesharing was having an effect, but there was some other factor contaminating the data from 2008-2014 (say an organized campaign against drunk driving or something).
+
+We're going to cheat a tiny bit because we need another sample of data (Holt-Winters requires 2 full years of data here) - so I'm going to say Uber actually opened for business a month earlier than it did.  Hopefully the first month was relatively slow as people started adopting to ridesharing, and it won't make much of a difference to stretch the effect out over one more month in addition the 23 months Uber and Lyft were in Austin.
+
+```{r}
+
+dwi.during <- dwi %>% filter(date >= '2014-5-01') %>% filter(date < '2016-05-01')
+dwi.exit <- filter(dwi,date >= '2016-05-01')
+
+dwi.during.count.ts <- ts(dwi.during$count, start = c(2014, 5), frequency = 12)
+dwi.exit.count.ts <- ts(dwi.exit$count, start = c(2016, 5), frequency = 12)
+
+dwi.during.count.hw <- HoltWinters(dwi.during.count.ts)
+
+forecast <- predict(dwi.during.count.hw, n.ahead = 6, prediction.interval = T, level = 0.7)
+plot(dwi.during.count.hw, forecast)
+lines(dwi.exit.count.ts,col='green')
+
+#WHAT'S GOING ON WITH THE SCALE HERE?
+```
+
+This looks better - the model fits better, the confidence interval is tighter, and the treatment effect is 80 DWI's over the first 3 months, a decrease of about 6%.  Maybe more convincing than the initial effect, but let's see if we can do better.
 
 
 ##Bayesian Structural Time-series
 ###With Google CausalImpact
 
+Google has a great library for testing the causal effect of a given treatment on a time series.  Designed for testing the effectiveness of advertising, I think this library will help us out - it's designed for inferrence on non-experimental data, which is what we've got.
+
+Typically, establishing causation requires good experimental design.  We don't have the resources to do a city-scale ridesharing/drunk-driving experiment, so we'll have to use some fancy Google math and our existing data.
+
+For this, we require a response and predictor - let's use DWI count as a response, and TABC revenue as a control, as it appears TABC sales growth is linear through the period Uber was available in Austin, and we've already shown that DWI counts and TABC revenues aren't correlated (PROVE THIS MORE STRONGLY - REMOVE SXSW and ACL?  GROWTH IS SEPERATE?) .
+
+(If you're running this at home note that you'll need the development version of `devtools` to install `CausalImpact` due to a bug in the CRAN version of `devtools`.  Get it with `devtools::install_github("hadley/devtools")` )
+
+```{r}
+
+
+dwi.ci <- select(dwi,date,count,rev)
+
+pre.ci <- as.Date(c("2008-01-01", "2014-05-31"))
+post.ci <- as.Date(c("2014-06-01", "2016-05-09"))
+
+impact <- CausalImpact(dwi.ci, pre.ci, post.ci)
+plot(impact)
+
+impact
+```
+
+God bless Google for making this so easy.  CausalImpact attributes a 9% drop in DWI's to ridesharing.
+
+UNDERSTAND HOW THIS WORKS MORE AND TALK ABOUT IT
+
+Let's look and see if Uber and Lyft leaving had any effect.
+
+```{r}
+
+
+dwi.ci <- select(dwi,date,count,rev)
+
+pre.ci <- as.Date(c("2014-05-31", "2016-05-09"))
+post.ci <- as.Date(c("2016-05-10", "2016-12-31"))
+
+impact <- CausalImpact(dwi.ci, pre.ci, post.ci)
+plot(impact)
+
+impact
+```
+
+According to this, voting out Uber and Lyft led to a 5% drop in DWI's in the second half of 2016, which seems counterintuitive.
 
 ##Regression Discontinuity Design
 
+###References
+Deterring Drunk Driving Fatalities: An Economics of Crime Perspective
+BRUCE L. BENSON AND DAVID W. RASMUSSEN
 
+Inferring causal impact using Bayesian structural time-series models
+Kay H. Brodersen, Fabian Gallusser, Jim Koehler, Nicolas Remy, Steven L. Scott
 
+Regression Discontinuity Designs in Economics
+David S. Lee and Thomas Lemieux
+
+#DRAFT DRAFT DRAFT
