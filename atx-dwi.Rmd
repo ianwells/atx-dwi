@@ -466,9 +466,23 @@ Visually, you might get a sense of the effect of ridesharing over the period mar
 ```{r}
 dwi$index <- seq.int(nrow(dwi))
 
-dwi.rdd <- rddtools::rdd_data(y = dwi$count,x = dwi$index,cutpoint = 78)
-summary(dwi.rdd)
+dwi.w <- filter(dwi, date < '2016-05-01', date > '2012-04-1')
+dwi.wo <- filter(dwi, date < '2016-12-31', date > '2014-05-30')
+
+dwi.rdd.w <- rddtools::rdd_data(y = dwi.w$count,x = dwi.w$index,cutpoint = 77)
+dwi.rdd.wo <- rddtools::rdd_data(y = dwi.wo$count,x = dwi.wo$index,cutpoint = 101)
+
+reg_para.w <- rdd_reg_lm(rdd_object = dwi.rdd.w, order = 1)
+reg_para.wo <- rdd_reg_lm(rdd_object = dwi.rdd.wo, order = 1)
+
+print(reg_para.w)
+plot(reg_para.w)
+
+print(reg_para.wo)
+plot(reg_para.wo)
 ```
+
+Checking the p-values for the regressions on either side of both discontinuities reveals that both aren't significantly differerent from random chance.
 
 ###References
 
