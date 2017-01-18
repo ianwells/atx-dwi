@@ -1,5 +1,5 @@
 ---
-title: "DWI Arrests, TABC Mixed Beverage Taxes, and Ridesharing, in Austin, TX"
+title: "Messing Around with DWI Arrests, TABC Mixed Beverage Taxes, and Ridesharing, in Austin, TX"
 output: html_document
 date: 2016-01-12
 ---
@@ -124,7 +124,7 @@ If you're familar with this data set you'll notice I've removed a few crimes:
 2) `DWI - DRUG RECOGNITION EXPERT` - You don't have to have any alcohol in your system to be charged with a DWI: in this case, an officer certified in recognizing the effects of some other substance has decided you shouldn't be driving.  While I imagine you could avoid trouble by hailing a ride in this case, I don't think I could relate it to bar sales, so this stat is going to be relegated to some other study.
 3) `CRASH/LEAVING THE SCENE` - This is a tricky one.  Certainly a non-zero percentage of hit-and-run offenses are commited by drunk drivers, but this charge doesn't offer any more details, and worse, there are more of this kind of crime than all the others put together.  How should we count them, if at all?  For now, let's leave them all out, as they're not counted in offical DWI tallies.  We might be able to project how many of these crimes involve alcohol at a later date, based on when and where they occured, but we'll leave that for another analysis.
 
-Let's take a look at the relative frequency of these offenses.
+Let's take a look at the relative frequency of these offenses.  Periodicity can be exploited later on.
 
 ```{r warning= FALSE}
 qplot(hour(date), data=dwi.raw, geom="histogram", bins = 24)
@@ -133,7 +133,7 @@ qplot(hour(date), data=dwi.raw, geom="histogram", bins = 24)
 Perhaps not surprisingly, nearly all DWI offenses occur between 8 PM and 5 AM.
 
 ```{r warning= FALSE}
-qplot(wday(date,label = TRUE), data=dwi.raw, bins = 7)
+qplot(wday(date,label = TRUE), data=dwi.raw)
 ```
 
 Again, looks like Fridays and Saturdays are popular days to get caught drunk driving.
@@ -232,6 +232,7 @@ sapply(dwi,class)
 dwi$date <- as.Date(dwi$date)
 dwi$count <- as.numeric(as.character(dwi$count))
 dwi$narc <- as.numeric(as.character(dwi$narc))
+dwi$treatment <- as.factor(dwi$treatment)
 ```
 
 ## TABC Mixed Beverage Tax
@@ -317,15 +318,13 @@ dwi.pre.count.hw <- HoltWinters(dwi.pre.count.ts)
 #dwi.rev.hw <- HoltWinters(dwi.rev.ts)
 #plot(dwi.rev.hw)
 
-forecast <- predict(dwi.pre.count.hw, n.ahead = 8, prediction.interval = T, level = 0.7)
+forecast <- predict(dwi.pre.count.hw, n.ahead = 8, prediction.interval = T, level = 0.9)
 plot(dwi.pre.count.hw, forecast)
 lines(dwi.post.count.ts,col='green')
 
 ```
 
-ADD RMSE/EVAL FOR MODEL
-
-The forecast is pretty rough - the data may not have been as periodic as it looked.  For the first 8 months Uber and Lyft were available in Austin, the real cumulative DWI count was 158 less than the predicted count - about 4%.  For the first 3 months, where our confidence interval is much tighter, we're only 24 DWI's less than predicted - a decrease of 1.5%.
+The forecast is pretty rough - the data may not have been periodic enough for this model to be effective.  For the first 8 months Uber and Lyft were available in Austin, the real cumulative DWI count was 158 less than the predicted count - about 4%.  For the first 3 months, where our confidence interval is much tighter, we're only 24 DWI's less than predicted - a decrease of 1.5%.
 
 Let's try the other side - fit a model from data starting from Uber's first month, and then stopping on Uber's last month.  If the prediction is lower than the real data, we might be able to say that ridesharing was having an effect, but there was some other factor contaminating the data from 2008-2014 (say an organized campaign against drunk driving or something).
 
@@ -341,14 +340,13 @@ dwi.exit.count.ts <- ts(dwi.exit$count, start = c(2016, 5), frequency = 12)
 
 dwi.during.count.hw <- HoltWinters(dwi.during.count.ts)
 
-forecast <- predict(dwi.during.count.hw, n.ahead = 6, prediction.interval = T, level = 0.7)
+forecast <- predict(dwi.during.count.hw, n.ahead = 6, prediction.interval = T, level = 0.9)
 plot(dwi.during.count.hw, forecast)
 lines(dwi.exit.count.ts,col='green')
 
-#WHAT'S GOING ON WITH THE SCALE HERE?
 ```
 
-This looks better - the model fits better, the confidence interval is tighter, and the treatment effect is 80 DWI's over the first 3 months, a decrease of about 6%.  Maybe more convincing than the initial effect, but let's see if we can do better.
+This looks better - the model fits better, the confidence interval is tighter, and the treatment effect is 80 DWI's over the first 3 months, a decrease of about 6%.  In other words, not having Uber and Lyft may have resulted in an additional 80 arrests.  Maybe more convincing than the initial effect, but let's see if we can do better.
 
 ##Bayesian Structural Time-series
 ###With Google CausalImpact
@@ -368,23 +366,21 @@ ggplot(data=dwi, mapping = aes(x=date,y=count, color = year(date))) + uber + geo
 
 ```
 
-It appears that there's an inflection around July 2012 - I don't know what caused it, and it happened before Uber showed up, so whatever it is it's outside the scope of this model.  CausalImpact should be able to take the downward trend in DWI and isolate the effect of the treatment in June 2014, if it exists.
+It appears that there's an inflection around March 2012 - I don't know what caused it, and it happened before Uber showed up, so whatever it is it's outside the scope of this model.  CausalImpact should be able to take the downward trend in DWI and isolate the effect of the treatment in June 2014, if it exists.
 
 We're also limiting the TABC data, so let's look at that, and the correlation for the time frame:
 
 ```{r}
 
-ggplot(data=filter(filter(dwi, date > '2012-07-01'),date < '2016-05-09'), mapping = aes(x=date,y=rev, color = year(date))) + uber + geom_point() + geom_smooth(method = 'lm', se = FALSE)
+ggplot(data=filter(filter(dwi, date > '2012-04-01'),date < '2016-05-09'), mapping = aes(x=date,y=rev, color = year(date))) + uber + geom_point() + geom_smooth(method = 'lm', se = FALSE)
 
-ggplot(data=filter(filter(dwi, date > '2012-07-01'),date < '2016-05-09'), mapping = aes(x=rev,y=count)) + geom_point() + geom_smooth(method = 'lm')
+ggplot(data=filter(filter(dwi, date > '2012-04-01'),date < '2016-05-09'), mapping = aes(x=rev,y=count)) + geom_point() + geom_smooth(method = 'lm')
 
-summary(lm(data=filter(filter(dwi, date > '2012-07-01'),date < '2016-05-09'), count ~ rev))
+summary(lm(data=filter(filter(dwi, date > '2012-04-01'),date < '2016-05-09'), count ~ rev))
 
 ```
 
 What we care about is that there is a correlation between TABC revenue and DWI arrests, and that there does not appear to be a discontinuity in the TABC revenue around when we expect a discontinuity to appear in the DWI data. The correlation exists, but it is negative, and although it looks like TABC sales are unaffected by ridesharing, we can do a quick check with our Holt-Winters method.
-
-#HOLT WINTERS HERE FOR TABC
 
 (If you're running this at home note that you'll need the development version of `devtools` to install `CausalImpact` due to a bug in the CRAN version of `devtools`.  Get it with `devtools::install_github("hadley/devtools")` )
 
@@ -393,7 +389,7 @@ What we care about is that there is a correlation between TABC revenue and DWI a
 
 dwi.ci <- select(dwi,date,count,rev)
 
-pre.ci <- as.Date(c("2012-07-01", "2014-05-31"))
+pre.ci <- as.Date(c("2012-04-01", "2014-05-31"))
 post.ci <- as.Date(c("2014-06-01", "2016-05-09"))
 
 impact <- CausalImpact(dwi.ci, pre.ci, post.ci,  model.args = list( prior.level.sd = 0.1,nseasons = 12, season.duration = 1))
@@ -429,44 +425,48 @@ It's possible that TABC revenues are a bad control variable here, let's see if n
 
 ```{r}
 
-ggplot(data=filter(filter(dwi, date > '2012-07-01'),date < '2016-05-09'), mapping = aes(x=date,y=narc, color = year(date))) + uber + geom_point() + geom_smooth(method = 'lm', se = FALSE)
+ggplot(data=filter(filter(dwi, date > '2012-04-01'),date < '2016-05-09'), mapping = aes(x=date,y=narc, color = year(date))) + uber + geom_point() + geom_smooth(method = 'lm', se = FALSE)
 
-ggplot(data=filter(filter(dwi, date > '2012-07-01'),date < '2016-05-09'), mapping = aes(x=narc,y=count)) + geom_point() + geom_smooth(method = 'lm')
+ggplot(data=filter(filter(dwi, date > '2012-04-01'),date < '2016-05-09'), mapping = aes(x=narc,y=count)) + geom_point() + geom_smooth(method = 'lm')
 
 summary(lm(data=filter(filter(dwi, date > '2012-07-01'),date < '2016-05-09'), count ~ narc))
 
 ```
 
-In this case, we have a positive correlation, and again no obvious discontinuity, but let's check with Holt-Winters.
-
-#HW FOR NARC
+In this case, we have a positive correlation, and again no obvious discontinuity.
 
 And our impact test with narcotics arrests as a control:
 
 ```{r}
 
+dwi.ci.n <- filter(select(dwi,date,count,narc),date > '2012-04-01')
 
-dwi.melted <-melt(dwi, id.vars="date")
-ggplot(data=filter(filter(dwi.melted, variable %in% c("narc","count")),date > '2010-01-01'), mapping = aes(x=date,y=value, color = variable)) + geom_point() + geom_smooth()
-
-dwi.ci.n <- filter(select(dwi,date,count,narc),date > '2010-01-01')
-
-pre.ci <- as.Date(c("2010-01-01", "2014-05-31"))
+pre.ci <- as.Date(c("2012-04-01", "2014-05-31"))
 post.ci <- as.Date(c("2014-06-01", "2016-05-09"))
-
-
 
 impact.n <- CausalImpact(dwi.ci.n, pre.ci, post.ci,model.args = list(prior.level.sd = 0.1,nseasons = 12, season.duration = 1))
 plot(impact.n)
 
 impact.n
+
 ```
+
+Using narcotics arrests as a control, ridesharing can account for a 7% drop in DWI arrests.
 
 ##Regression Discontinuity Design
 
+Regression Discontinuity Design is another method of establishing causality without the benefit of experimental design.  The key assumption is that, with regards to a time series, the data on either side of a treatment inflection are otherwise similar - nothing else special has happened.  We'll look at regressions on either side of the treatment and see how they look - first with just LM and then with a specialized library.
+
 ```{r}
-dwi$index<-seq.int(nrow(dwi))
-dwi.rdd = rddtools::rdd_data(y = dwi$count,x = dwi$index,cutpoint = 78)
+ggplot(data = filter(dwi,date > '2012-04-01'),mapping = aes(date, count, color = treatment) )+ geom_point() + geom_smooth(method = 'lm')
+```
+
+Visually, you might get a sense of the effect of ridesharing over the period marked in green, but let's keep looking.
+
+```{r}
+dwi$index <- seq.int(nrow(dwi))
+
+dwi.rdd <- rddtools::rdd_data(y = dwi$count,x = dwi$index,cutpoint = 78)
 summary(dwi.rdd)
 ```
 
