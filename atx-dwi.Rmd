@@ -42,10 +42,10 @@ A common argument is that the presence of ride-sharing services such as Uber or 
 
 There have been a few articles and a couple papers studying the effect of the availability of ridesharing services on drunk driving (see references below), but in my opinion they fall short in one or more ways:
 
-*They fail to count all available records of drunk driving (like if, say, a study only counted drunk driving fatalities)
-*They fail to account for trends in drunk driving frequency (like if, say, more people than average drove drunk on certain holidays), or aggregate time-series data too broadly
-*They fail to control for exogenous effects on drunk driving frequency (like if, say, the population of a core drinking demographic increased)
-*They fail to properly treat the regression discontinuity between data before and after ridesharing was available in Austin (more on this later)
+* They fail to count all available records of drunk driving (like if, say, a study only counted drunk driving fatalities)
+* They fail to account for trends in drunk driving frequency (like if, say, more people than average drove drunk on certain holidays), or aggregate time-series data too broadly
+* They fail to control for exogenous effects on drunk driving frequency (like if, say, the population of a core drinking demographic increased)
+* They fail to properly treat the regression discontinuity between data before and after ridesharing was available in Austin (more on this later)
 
 I've managed to get ahold of three datasets that I think will be helpful:
   
@@ -76,7 +76,8 @@ The TABC (Texas Alcoholic Beverage Commission) Mixed Beverage Tax is a fixed tax
 
 We'll call June 4 and May 9 treatment dates - the inflection points we'll investigate to see if the data on either side is substantially different.
 
-You can find the same data I used here:
+You can find the same data I used at these sites:
+
 * https://data.austintexas.gov/browse?q=apd&sortBy=relevance
 * https://www.comptroller.texas.gov/transparency/open-data/search-datasets/
 * https://austintexas.gov/page/chiefs-monthly-reports
@@ -510,7 +511,7 @@ plot(reg_para.wo)
 
 Checking the p-values for the regressions on either side of both discontinuities reveals that both aren't significantly different from random chance.  The second discontinuity - while much sharper - is based on too little data to conclude anything sharply, although it is certainly suggestive.  It would appear that the variance in our DWI arrest sample points is too high to really establish anything with this kind of analysis.
 
-#Conclustions
+#Conclusions
 
 Our conclusions were a bit mixed - DWI per $ tax revenue ended up being not useful, the data was in some cases too noisy for a solid conclusion with Holt-Winters (although another kind of exponential smoothing model performed better and gave similar results), CausalImpact predicted a counter-intuitive result for post-Uber DWI's, and the data was also too noisy for a conclusive regression discontinuity analysis.
 
