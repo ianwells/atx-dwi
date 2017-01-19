@@ -29,6 +29,7 @@ library(lubridate)
 library(reshape)
 library(CausalImpact)
 library(rddtools)
+library(forecast)
 
 select <- dplyr::select 
 ```
@@ -309,17 +310,38 @@ dwi.post.count.ts <- ts(dwi.post$count, start = c(2014, 6), frequency = 12)
 
 dwi.pre.count.hw <- HoltWinters(dwi.pre.count.ts)
 
+
 forecast <- predict(dwi.pre.count.hw, n.ahead = 24, prediction.interval = T, level = 0.9)
+
 plot(dwi.pre.count.hw, forecast)
 lines(dwi.post.count.ts,col='green')
 
 effect <- forecast - dwi.post.count.ts
+
 pct.effect <- cumsum(effect)/cumsum(forecast)
 pct.effect[12]
 pct.effect[3]
 ```
 
 The forecast is rough - the data may not have been periodic enough for this model to be effective.  For the first 12 months Uber and Lyft were available in Austin, the real cumulative DWI count was 440 arrests less than the predicted count - an effect of about 7%.  For the first 3 months, where our confidence interval is much tighter, we're only 24 DWI's less than predicted - a decrease of 1.6%.
+
+We can try a potentially better-fitting model from the expoential smoothing family of models with `ets`.
+
+```{r}
+dwi.pre.count.ets <- ets(dwi.pre.count.ts, model = 'ZZZ')
+forecast.ets <- predict(dwi.pre.count.ets, n.ahead = 24, prediction.interval = T, level = 0.9)
+
+plot(forecast.ets)
+lines(dwi.post.count.ts,col='green')
+
+effect.ets <- forecast.ets$mean - dwi.post.count.ts
+
+pct.effect.ets <- cumsum(effect.ets)/cumsum(forecast.ets$mean)
+pct.effect.ets[12]
+pct.effect.ets[3]
+```
+
+With much tighter error, `ets` suggests a drop of 8.5% over 12 months and 5.6% over 3 months.
 
 Let's try the other side - fit a model from data starting from Uber's first month, and then stopping on Uber's last month.  If the prediction is lower than the real data, we might be able to say that ridesharing was having an effect, but there was some other factor contaminating the data from 2008-2014 (say an organized campaign against drunk driving or something).
 
@@ -345,7 +367,7 @@ pct.effect[7]
 pct.effect[3]
 ```
 
-This looks better - the model fits better, the confidence interval is tighter, and the treatment effect is 80 DWI's over the first 3 months, a decrease of about 6%.  In other words, not having Uber and Lyft may have resulted in an additional 80 arrests.  Maybe more convincing than the initial effect, but let's see if we can do better.
+This looks better - the model fits better, the confidence interval is tighter, and the treatment effect is 80 DWI's over the first 3 months, a decrease of about 6%.  In other words, not having Uber and Lyft may have resulted in an additional 80 arrests.  Let's see if we can do better.
 
 ##Bayesian Structural Time-series
 ###With Google CausalImpact
@@ -490,11 +512,11 @@ Checking the p-values for the regressions on either side of both discontinuities
 
 #Conclustions
 
-Our conclusions were a bit mixed - DWI per $ tax revenue ended up being not useful, the data was in some cases too noisy for a solid conclusion with Holt-Winters, CausalImpact predicted a counter-intuitive result for post-Uber DWI's, and the data was also too noisy for a conclusive regression discontinuity analysis.
+Our conclusions were a bit mixed - DWI per $ tax revenue ended up being not useful, the data was in some cases too noisy for a solid conclusion with Holt-Winters (although another kind of exponential smoothing model performed better and gave similar results), CausalImpact predicted a counter-intuitive result for post-Uber DWI's, and the data was also too noisy for a conclusive regression discontinuity analysis.
 
-Still, our three methods did agree that ridesharing did move the needle on DWI arrests for the treatment period starting June 2014, and Holt-Winters provided a confident assessment of the period starting May 2016, which is something.  I think that, anticipating further study, we can hesitantly attribute a drop in DWI arrests of approximately 5-10% to the presence of ridesharing in Austin, and an increase in DWI arrests of approximately 0-5% to the Uber/Lyft exit, after controlling for external effects.
+Still, our methods did agree that ridesharing did move the needle on DWI arrests for the treatment period starting June 2014, and Holt-Winters provided a confident assessment of the period starting May 2016, which is something.  I think that, anticipating further study, we can attribute a drop in DWI arrests of approximately 5-10% to the presence of ridesharing in Austin, and an increase in DWI arrests of approximately 0-5% to the Uber/Lyft exit, after controlling for external effects.
 
-###References
+#References
 
 Deterring Drunk Driving Fatalities: An Economics of Crime Perspective
 Bruce L. Benson and David W. Rasmussen
