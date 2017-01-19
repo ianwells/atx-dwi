@@ -309,12 +309,17 @@ dwi.post.count.ts <- ts(dwi.post$count, start = c(2014, 6), frequency = 12)
 
 dwi.pre.count.hw <- HoltWinters(dwi.pre.count.ts)
 
-forecast <- predict(dwi.pre.count.hw, n.ahead = 8, prediction.interval = T, level = 0.9)
+forecast <- predict(dwi.pre.count.hw, n.ahead = 24, prediction.interval = T, level = 0.9)
 plot(dwi.pre.count.hw, forecast)
 lines(dwi.post.count.ts,col='green')
+
+effect <- forecast - dwi.post.count.ts
+pct.effect <- cumsum(effect)/cumsum(forecast)
+pct.effect[12]
+pct.effect[3]
 ```
 
-The forecast is pretty rough - the data may not have been periodic enough for this model to be effective.  For the first 8 months Uber and Lyft were available in Austin, the real cumulative DWI count was 158 less than the predicted count - about 4%.  For the first 3 months, where our confidence interval is much tighter, we're only 24 DWI's less than predicted - a decrease of 1.5%.
+The forecast is rough - the data may not have been periodic enough for this model to be effective.  For the first 12 months Uber and Lyft were available in Austin, the real cumulative DWI count was 440 arrests less than the predicted count - an effect of about 7%.  For the first 3 months, where our confidence interval is much tighter, we're only 24 DWI's less than predicted - a decrease of 1.6%.
 
 Let's try the other side - fit a model from data starting from Uber's first month, and then stopping on Uber's last month.  If the prediction is lower than the real data, we might be able to say that ridesharing was having an effect, but there was some other factor contaminating the data from 2008-2014 (say an organized campaign against drunk driving or something).
 
@@ -329,9 +334,15 @@ dwi.exit.count.ts <- ts(dwi.exit$count, start = c(2016, 5), frequency = 12)
 
 dwi.during.count.hw <- HoltWinters(dwi.during.count.ts)
 
-forecast <- predict(dwi.during.count.hw, n.ahead = 6, prediction.interval = T, level = 0.9)
+forecast <- predict(dwi.during.count.hw, n.ahead = 12, prediction.interval = T, level = 0.9)
 plot(dwi.during.count.hw, forecast)
 lines(dwi.exit.count.ts,col='green')
+
+
+effect <- forecast - dwi.exit.count.ts
+pct.effect <- cumsum(effect)/cumsum(forecast)
+pct.effect[7]
+pct.effect[3]
 ```
 
 This looks better - the model fits better, the confidence interval is tighter, and the treatment effect is 80 DWI's over the first 3 months, a decrease of about 6%.  In other words, not having Uber and Lyft may have resulted in an additional 80 arrests.  Maybe more convincing than the initial effect, but let's see if we can do better.
@@ -367,15 +378,15 @@ ggplot(data=filter(filter(dwi, date > '2012-04-01'),date < '2016-05-09'), mappin
 summary(lm(data=filter(filter(dwi, date > '2012-04-01'),date < '2016-05-09'), count ~ rev))
 ```
 
-What we care about is that there is a correlation between TABC revenue and DWI arrests, and that there does not appear to be a discontinuity in the TABC revenue around when we expect a discontinuity to appear in the DWI data. The correlation exists, but it is negative, and although it looks like TABC sales are unaffected by ridesharing, we can do a quick check with our Holt-Winters method.
+What we care about is that there is a correlation between TABC revenue and DWI arrests, and that there does not appear to be a discontinuity in the TABC revenue around when we expect a discontinuity to appear in the DWI data. Earlier we noted that there was no correlation between DWI and TABC revenues over the 2008-2016 time frame, but if we're discounting 2008-2011, we can look again.  The correlation exists, but it is negative, and it looks like TABC sales are unaffected by ridesharing.
 
 (If you're running this at home note that you'll need the development version of `devtools` to install `CausalImpact` due to a bug in the CRAN version of `devtools`.  Get it with `devtools::install_github("hadley/devtools")` )
 
 ```{r}
-dwi.ci <- select(dwi,date,count,rev)
+dwi.ci <- select(filter(dwi,date>="2012-04-01"),date,count,rev)
 
 pre.ci <- as.Date(c("2012-04-01", "2014-05-31"))
-post.ci <- as.Date(c("2014-06-01", "2016-05-09"))
+post.ci <- as.Date(c("2014-06-01", "2016-05-01"))
 
 impact <- CausalImpact(dwi.ci, pre.ci, post.ci,  model.args = list( prior.level.sd = 0.1,nseasons = 12, season.duration = 1))
 
@@ -391,10 +402,10 @@ UNDERSTAND HOW THIS WORKS MORE AND TALK ABOUT IT
 Let's look and see if Uber and Lyft leaving had any effect.
 
 ```{r}
-dwi.ci <- select(dwi,date,count,rev)
+dwi.ci <- select(filter(dwi,date >= "2012-04-01"),date,count,rev)
 
-pre.ci <- as.Date(c("2014-05-31", "2016-05-09"))
-post.ci <- as.Date(c("2016-05-10", "2016-12-31"))
+pre.ci <- as.Date(c("2014-06-01", "2016-04-30"))
+post.ci <- as.Date(c("2016-05-01", "2016-12-31"))
 
 impact <- CausalImpact(dwi.ci, pre.ci, post.ci,model.args = list( prior.level.sd = 0.1))
 plot(impact)
@@ -402,9 +413,9 @@ plot(impact)
 impact
 ```
 
-According to this, voting out Uber and Lyft led to a 5% drop in DWI's in the second half of 2016, which seems counter-intuitive.
+According to this, voting out Uber and Lyft led to a 3.7% drop in DWI's in the second half of 2016, which seems counter-intuitive, although the confidence range includes as much as a 2% increase in DWI's (or a 10% decrease).  
 
-It's possible that TABC revenues are a bad control variable here, let's see if narcotics arrests are better.
+It's also possible that TABC revenues are a bad control variable here, let's see if narcotics arrests are better.
 
 ```{r}
 ggplot(data=filter(filter(dwi, date > '2012-04-01'),date < '2016-05-09'), mapping = aes(x=date,y=narc, color = year(date))) + uber + geom_point() + geom_smooth(method = 'lm', se = FALSE)
@@ -432,6 +443,20 @@ impact.n
 
 Using narcotics arrests as a control, ridesharing can account for a 7% drop in DWI arrests.
 
+```{r}
+dwi.ci.n <- filter(select(dwi,date,count,narc),date > '2012-04-01')
+
+pre.ci <- as.Date(c("2014-06-01", "2016-04-30"))
+post.ci <- as.Date(c("2016-05-01", "2016-12-31"))
+
+impact.n <- CausalImpact(dwi.ci.n, pre.ci, post.ci,model.args = list(prior.level.sd = 0.1,nseasons = 12, season.duration = 1))
+plot(impact.n)
+
+impact.n
+```
+
+Again, a counterintuitive result of a 4% decrease in DWI's post-Uber, with error.
+
 ##Regression Discontinuity Design
 
 Regression Discontinuity Design is another method of establishing causality without the benefit of experimental design.  The key assumption is that, with regards to a time series, the data on either side of a treatment inflection are otherwise similar - nothing else special has happened.  We'll look at regressions on either side of the treatment and see how they look - first with just LM and then with a specialized library.
@@ -440,7 +465,7 @@ Regression Discontinuity Design is another method of establishing causality with
 ggplot(data = filter(dwi,date > '2012-04-01'),mapping = aes(date, count, color = treatment) )+ geom_point() + geom_smooth(method = 'lm')
 ```
 
-Visually, you might get a sense of the effect of ridesharing over the period marked in green, but let's keep looking.
+Visually, you might be tempted to get a sense of the effect of ridesharing over the period marked in green, but let's keep looking.
 
 ```{r}
 dwi$index <- seq.int(nrow(dwi))
@@ -461,7 +486,7 @@ print(reg_para.wo)
 plot(reg_para.wo)
 ```
 
-Checking the p-values for the regressions on either side of both discontinuities reveals that both aren't significantly different from random chance.  The second discontinuity - while much sharper - is based on too little data to conclude anything sharply, although it is certainly suggestive.
+Checking the p-values for the regressions on either side of both discontinuities reveals that both aren't significantly different from random chance.  The second discontinuity - while much sharper - is based on too little data to conclude anything sharply, although it is certainly suggestive.  It would appear that the variance in our DWI arrest sample points is too high to really establish anything with this kind of analysis.
 
 #Conclustions
 
@@ -479,6 +504,14 @@ Kay H. Brodersen, Fabian Gallusser, Jim Koehler, Nicolas Remy, Steven L. Scott
 
 Regression Discontinuity Designs in Economics
 David S. Lee and Thomas Lemieux
+
+#Disclaimers
+
+##APD
+>The Austin Police Department does not assume any liability for any decision made or action taken or not taken by the recipient in reliance upon any information or data provided.
+
+##TABC
+>The Comptroller of Public Accounts cannot vouch for the data or analysis derived from data after it has been retrieved from the Comptroller's Web site.
 
 #License
 
