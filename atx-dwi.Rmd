@@ -16,11 +16,6 @@ DRAFT DRAFT DRAFT
 
 (Playing along at home?  Here's what you'll need:)
 
-```{r}
-(.packages())
-select <- dplyr::select
-```
-
 ```{r include = FALSE}    
 library(ggplot2)
 library(dplyr)
@@ -30,17 +25,18 @@ library(reshape)
 library(CausalImpact)
 library(rddtools)
 library(forecast)
+select <- dplyr::select
 
-select <- dplyr::select 
 ```
+
 
 ##Background
 
-So, as you may or may not know, Uber and Lyft, America's two premiere ridesharing services, stopped offering rides in Austin, TX as of May 9, 2016 after a contentious public vote which you can read about here: http://www.bizjournals.com/austin/news/2016/05/07/uber-lyft-defeated-in-prop-1-referendum.html
+So, as you may or may not know, Uber and Lyft, two major ridesharing services, stopped offering rides in Austin, TX as of May 9, 2016 after a contentious public vote which you can read about here: http://www.bizjournals.com/austin/news/2016/05/07/uber-lyft-defeated-in-prop-1-referendum.html
 
 A common argument is that the presence of ride-sharing services such as Uber or Lyft decreases the incidence of drunken driving in a city in which they operate; it sounds reasonable enough to say that if there are more options for getting home after drinking, at least one of them might be more attractive than driving home in a potentially compromised state.
 
-There have been a few articles and a couple papers studying the effect of the availability of ridesharing services on drunk driving (see references below), but in my opinion they fall short in one or more ways:
+There have been a few articles and a couple papers studying the availability of ridesharing services and drunk driving (see references below), but in my opinion they fall short in one or more ways:
 
 * They fail to count all available records of drunk driving (like if, say, a study only counted drunk driving fatalities)
 * They fail to account for trends in drunk driving frequency (like if, say, more people than average drove drunk on certain holidays), or aggregate time-series data too broadly
@@ -53,13 +49,13 @@ I've managed to get a hold of three datasets that I think will be helpful:
 2. TABC Mixed Beverage Tax Receipts for Austin, 2008-2016.
 3. APD Chief's Monthly Reports, 2010-2016, with numbers of DWI and Narcotics arrests.
 
-The APD (Austin Police Department) Incident Reports are publicly available for years 2008-2011, and for 'YTD' which supposedly includes the last 18 months of reported crime in Austin but actually only includes 8 months of 2016 and a small number of reports from 2015.  I was able to obtain an archived version of the data from late 2015, which has more complete data for Jan-Jul 2015.  
+The APD (Austin Police Department) Incident Reports are publicly available for years 2008-2011, and for 'Year to Date' which supposedly includes the last 18 months of reported crime in Austin but actually only includes 8 months of 2016 and a small number of reports from 2015.  I was able to obtain an archived version of the data from late 2015, which has more complete data for Jan-Jul 2015.  
 
 The APD Chief's Monthly Report is a high-level summary of crime in Austin for the month, including counts for high-profile crimes including DWI.  It has no time-of-day or location information, and no info other than just that a DWI occurred, but is another source of data to compare to the incident reports, which may be spotty.  It additionally contains data on narcotics arrests, which we can check to see if we can use it as a control variable - narcotics crimes may follow the same broad trends as DWI, but are potentially unaffected by ridesharing.
 
-It's worth noting that the study of DWI arrest numbers as a proxy for the incidence of drunk driving is an open area of research - some studies prefer drunk driving crashes, although Austin has not released enough monthly statistics on drunk driving crashes to make it a usable variable in these models.  We'll assume DWI arrests are a viable proxy for drunk driving here.
+It's worth noting that the study of DWI arrest numbers as a proxy for the incidence of drunk driving is an open area of research - some studies prefer drunk driving crashes, although Austin has not released enough monthly statistics on drunk driving crashes to make it a useful for what I want to do.  We'll assume DWI arrests are a viable proxy for drunk driving here.
 
-The TABC (Texas Alcoholic Beverage Commission) Mixed Beverage Tax is a fixed tax charged on alcoholic beverages sold by a holder of a Mixed Beverage License in the state of Texas.  I suspect that Mixed Beverage Tax revenues are correlated with Units of Alcohol Consumed in Austin, and we'll check to see if any relationship exists between these tax revenues and DWI counts.
+The TABC (Texas Alcoholic Beverage Commission) Mixed Beverage Tax is a fixed tax charged on alcoholic beverages sold by a holder of a Mixed Beverage License in the state of Texas.  I suspect that Mixed Beverage Tax revenues are associated with Units of Alcohol Consumed in Austin, and we'll check to see if any relationship exists between these tax revenues and DWI counts.
 
 ##Dates of Interest
 
@@ -71,7 +67,7 @@ The TABC (Texas Alcoholic Beverage Commission) Mixed Beverage Tax is a fixed tax
 
 * May 9, 2016: Uber and Lyft stop giving rides in Austin.
 
-We'll call June 4 and May 9 treatment dates - the inflection points we'll investigate to see if the data on either side is substantially different.
+We'll call June 4 and May 9 treatment dates - the inflection points we'll investigate to see if the data on either side is substantially different.  When dealing with monthly data we'll have to say that June 2014 is the first month of the treatment and April 2016 is the last month.
 
 You can find the same data I used at these sites:
 
@@ -81,7 +77,7 @@ You can find the same data I used at these sites:
 * https://durs.carto.com/tables/apd_incident_extract_2015csv/public
 
 Or you can pull it from my Github, 
-http://www.github.com/ianwells
+http://www.github.com/ianwells/atx-dwi
 
 Alright, Let's get to it.
 
@@ -106,7 +102,7 @@ narc.raw <- read.csv('data/narc-raw.csv')
 apd.raw <- merge(apd.raw,narc.raw, by = 'date')
 ```
 
-Here's a quick glimpse of what the raw APD data looks like:
+It's always a good idea to just poke around in your data and see what's going on.  Here's a quick glimpse of what the raw APD data looks like:
 
 ```{r}
 sample_n(dwi.raw,10)
@@ -222,7 +218,7 @@ both.melted.nudge <-melt(both.monthly.nudge, id.vars="date")
 ggplot(data=both.melted.nudge, mapping = aes(x=date,y=value, color = variable)) + geom_point()
 ```
 
-Alright, that's a little cleaner.  We'll move forward with this set of data until I can get more comprehensive arrest records, being able to use weekly periodicity might be useful.
+Alright, that's a little cleaner.  We'll move forward with this set of monthly data until I can get more comprehensive arrest records, being able to use weekly periodicity might be useful.
 
 ##Narcotics Arrests
 
@@ -234,7 +230,7 @@ ggplot(data=apd.monthly, aes(x = date, y = narc, color = factor(year))) + geom_p
 qplot(factor(month(date)), data=apd.monthly, geom="bar", weight = narc)
 ```
 
-Not a lot to say here - there's a strong January but not a lot else that lines up with the DWI data.  We'll see if they're correlated later.
+Not a lot to say here - there's a strong January but not a lot else that lines up with the DWI data.
 
 I've saved out our final data set here to save time.
 
@@ -252,8 +248,6 @@ dwi$treatment <- as.factor(dwi$treatment) #0: pre uber, 1:uber, 2:post uber
 Let's have a look at what's going on with the TABC data.  Now, I've already done a bit of work with this data set in the past (see tabcmap.s3-website-us-east-1.amazonaws.com), so I've just pulled values from my database of monthly revenues calculated from monthly tax receipts.
 
 Here's what a few rows look like:
-
-ADJUST FOR INFLATION
 
 ```{r}
 sample_n(tabc.raw,10)
@@ -312,7 +306,7 @@ Alright, so now that we've got some data, what can we do with it?  How can we es
 
 ##Regression Discontinuity
 
-Typically, when you set out to prove something with science, you sit down and design a well-controlled experiment.  We don't have the resources to do a city-scale ridesharing/drunk-driving experiment, so we'll have to use the next best things: fancy math and historical data.
+Typically, when you set out to prove something with science, you sit down and design an experiment.  We don't have the resources to do a double-blind city-scale ridesharing/drunk-driving experiment, so we'll have to use the next best things: fancy math and historical data.
 
 Regression Discontinuity Design is a method of establishing causality without the benefit of experimental design.  The key assumption is that, with regards to a time series, the data on either side of a treatment inflection are otherwise similar - nothing else special has happened.  If you can get behind that, you could claim that if there's a kink in your data, it's because of the treatment you're investigating.
 
@@ -330,7 +324,7 @@ First, we'll plot regressions on either side of the treatment and see how they l
 ggplot(data = filter(dwi,date > '2012-05-01'),mapping = aes(date, count, color = treatment) )+ geom_point() + geom_smooth(method = 'lm')
 ```
 
-Visually, you might be tempted to get a sense of the effect of ridesharing over the period marked in green, but let's keep going.  We're going to do a proper analysis with the `rddtools` library and see if there is a statistically significant change in the regressions before and after each discontinuity.
+Visually, you might be tempted to get a sense of the effect of ridesharing over the period marked in green, but let's keep going.  We're going to use the `rddtools` library and see if there is a statistically significant change in the regressions before and after each discontinuity, we'll also compare `rddtools` to the output of `lm` 
  
 ```{r}
 dwi$index <- seq.int(nrow(dwi))
@@ -353,7 +347,7 @@ plot(reg_para.w)
 summary(lm.w)
 ```
 
-For the first treatment, RDD tells us that the drop is small enough relative to the variance in the data that any bump and change in the slope of the regression is too small to be attributed to anything other than randomness - at least when modeled with a straight line.  We'll consider that a straight line isn't the best way to fit this data later on.
+For the first treatment, RDD tells us that the drop is small enough relative to the variance in the data that any bump and change in the slope of the regression is too small to be attributed to anything other than randomness - at least when modeled with a straight line.  We'll consider that a straight line isn't the best way to fit this data later on - remember we spent some time investigating periodic patterns.
 
 ```{r}
 print(reg_para.wo)
@@ -367,7 +361,7 @@ For the second treatment, the jump in the regression is more pronounced and the 
 
 Our regression discontinuity design fit 1st degree polynomials to the DWI data, but what if the behavior is more complicated than that?  We observed earlier that there may be a periodic component to the data, what if ridesharing disrupts busy DWI months but not slower months, would a simple linear regression uncover that?
 
-Exponential Smoothing is a class of methods for predicting future values in a time series based on manipulations of past values.  Holt-Winters Forecasting is a method of predicting time-series data that has strong periodic components by separately smoothing long-term trend, short-term seasonality, and local level components to create a forecast that takes into account predictable variations in the data.  We saw above that our DWI data probably has some yearly trends in it - the data shows it a little, and you can Google around for articles about DWI in Austin and see for yourself that January is a special month for the police (look for 'no-refusal weekend').  We'll decompose the DWI and DWI/$ really quick and you can see for yourself:
+Exponential Smoothing is a class of methods for predicting future values in a time series based on manipulations of past values.  Holt-Winters Forecasting is a method of predicting time-series data that has strong periodic components by separately smoothing long-term trend, short-term seasonality, and local components to create a forecast that takes into account predictable variations in the data.  We saw above that our DWI data probably has some yearly trends in it - the data shows it a little, and you can Google around for articles about DWI in Austin and see for yourself that January is a special month for the police (look for 'no-refusal weekend').  We'll decompose the DWI and DWI/$ really quick and you can see for yourself:
 
 ```{r}
 plot(stl(ts(dwi$count, start = c(2008, 1), frequency = 12), s.window="periodic"))
@@ -377,7 +371,30 @@ plot(stl(ts(dwi$count_per_mm, start = c(2008, 1), frequency = 12), s.window="per
 
 You can see seasonality contributes to a swing of 70 DWI arrests, or 2.5 arrests per $MM.
 
-What I'm going to do is feed DWI data from January 2008 - May 2014 (the last month before Uber and Lyft were widely available in Austin) into a Holt-Winters model and forecast DWI counts for the next few months (we can roll the data back to 2008 again because we're not concerned with local effects so much as trends inherent in DWI counts).  I'm then going to compare those to the actual data, with the reasoning that since the model takes into account yearly cycles and broad trends, it will come up with a prediction for DWI counts as if ridesharing never appeared.  We can call the difference the number of DWI's ridesharing prevented, with some degree of confidence.
+What I'm going to do is feed DWI data from January 2008 - May 2014 (the last month before Uber and Lyft were widely available in Austin) into a Holt-Winters model and forecast DWI counts for the next few months (we can roll the data back to 2008 again because we're not concerned with local effects so much as trends inherent in DWI counts).  I'm then going to compare those to the actual data, with the reasoning that since the model takes into account yearly cycles and broad trends, it will come up with a prediction for DWI counts as if ridesharing never appeared.  We can call the difference the number of DWI's ridesharing prevented.
+
+Let's get confident in this method - first I'm going to take some untreated months and see if we can predict them reliably.
+
+```{r}
+dwi.pre <- filter(dwi,date < '2013-10-31')
+dwi.post <- filter(dwi,date > '2013-10-31')
+
+dwi.pre.count.ts <- ts(dwi.pre$count, start = c(2008, 1), frequency = 12)
+dwi.post.count.ts <- ts(dwi.post$count, start = c(2013, 11), frequency = 12)
+
+dwi.pre.count.hw <- HoltWinters(dwi.pre.count.ts)
+
+forecast <- predict(dwi.pre.count.hw, n.ahead = 6, prediction.interval = T, level = 0.9)
+
+plot(dwi.pre.count.hw, forecast); lines(dwi.post.count.ts,col='green')
+
+effect <- forecast - dwi.post.count.ts
+
+pct.effect <- cumsum(effect)/cumsum(forecast)
+pct.effect[6]
+```
+
+Not bad.  The model is a little rough - it fits it approximately but fails to catch all the peaks - the data may not have been periodic enough for this model to be effective, or there may be too much non-seasonal noise.  However, using the data from January 2008 to October 2013, it looks like we can predict cumulative DWI's for the next 6 months within 1.5%.  That should make us feel better about the numbers coming out, with the caveat that cumulative DWI predictions over longer time frames may be more accurate than picking individual months.  Let's move the end of the training data to May 2014 (the last month without Uber and Lyft) and see how things look.
 
 ```{r}
 dwi.pre <- filter(dwi,date < '2014-05-31')
@@ -399,7 +416,7 @@ pct.effect[12]
 pct.effect[3]
 ```
 
-The forecast is a little rough - the data may not have been periodic enough for this model to be effective.  For the first 12 months Uber and Lyft were available in Austin, the real cumulative DWI count was 440 arrests less than the predicted count - an effect of about 7%.  For the first 3 months, where our confidence interval is much tighter (and perhaps while Uber and Lyft were still growing in capacity), we're only 24 DWI's less than predicted - a decrease of 1.6%.
+For the first 12 months Uber and Lyft were available in Austin, the real cumulative DWI count was 440 arrests less than the predicted count - an effect of about 7% (over the whole 24-month period, we see 8%).  For the first 3 months, where our error bars are much tighter (and perhaps while Uber and Lyft were still growing in capacity), we're only 24 DWI's less than predicted - a decrease of 1.6%.
 
 We can try a potentially better-fitting model from the exponential smoothing family of models with `ets`.
 
@@ -416,7 +433,7 @@ pct.effect.ets[12]
 pct.effect.ets[3]
 ```
 
-With much tighter error, `ets` suggests a drop of 8.5% over 12 months and 5.6% over 3 months.
+With much tighter margin of error, `ets` suggests a drop of 8.5% over 12 months (9.7 over the full 24) and 5.6% over 3 months.
 
 I'd like to look at our DWI per Revenue variable, but first we have to answer, how much did ridesharing affect bar revenues?  If it's a lot, we'll have a hard time attributing a change in DWI/$ to a change in DWI's.
 
@@ -477,7 +494,9 @@ pct.effect[7]
 pct.effect[3]
 ```
 
-This looks better - the model fits better, the confidence interval is tighter, and the treatment effect is 80 DWI's over the first 3 months, a decrease of about 6%.  In other words, not having Uber and Lyft may have resulted in an additional 80 arrests. 
+This looks better - the model fits better, the confidence interval is tighter, and the treatment effect is 80 DWI's over the first 3 months, a decrease of about 6%.  In other words, not having Uber and Lyft may have resulted in an additional 80 arrests. After 7 months (taking us to the end of our data), we observe a smaller 5% decrease - perhaps we can attribute this to the smaller ridesharing services (like Fare) that sprung up in Austin after Uber and Lyft stopped offering rides.
+
+Let's do the same with DWI/$MM:
 
 ```{r}
 dwi.during.rev.ts <- ts(dwi.during$rev, start = c(2014, 5), frequency = 12)
@@ -511,7 +530,7 @@ pct.effect[7]
 pct.effect[3]
 ```
 
-14% higher DWI/$MM over the first 3 months without Uber, or 12% through 2016.
+14% higher DWI/$MM over the first 3 months without Uber, or 12% through 2016, again exceeding the effect of not having ridesharing on revenue alone.
 
 We've got one more trick up our sleeves.
 
@@ -520,23 +539,21 @@ We've got one more trick up our sleeves.
 
 Google has a great library for testing the causal effect of a given treatment on a time series.  Designed for testing the effectiveness of advertising, I think this library will help us out - it's designed for inference on non-experimental data, which is what we've got.
 
-For this, we require a response and predictor - let's use DWI count as a response, and TABC revenue as a control, as it appears TABC sales growth is less affected than DWI, per our experiments in the previous section.  We'll also try narcotic arrests as a control later.
+For this, in contrast to regression discontinuity or exponential smoothing methods, we require a response and predictor - one thing that we think a treatment affected and one thing that we are confident it didn't.  let's use DWI count as a response, and TABC revenue as a control, as it appears TABC sales growth is less affected than DWI, per our experiments in the previous section, and also narcotic arrests.
 
 We need a well-behaved stretch of data to use as a control - so let's re-use the same cutoff we used for our regression discontinuity design (2012-05-01).  Let's plot it to see if it it looks like anything strange happened to our control data over our period of interest.
 
-```{r}
+```{r warning = FALSE}
 uber <- geom_rect(mapping = aes(xmin=as.Date('2014-06-01'), xmax = as.Date('2016-05-01')), ymin=-Inf, ymax=+Inf, color="grey20", alpha=0.3, inherit.aes = FALSE)
-
-melt(select(filter(dwi,date>="2012-04-01"),narc,count,rev,date), id='date')
 
 ggplot(data=melt(select(filter(dwi,date>="2012-04-01"),narc,count,rev,date),id = 'date'), mapping = aes(x=date, y=value, color = variable)) + uber + geom_point() + geom_smooth(method = 'loess', se = FALSE)
 ```
 
-Not the best, but it's what we've got.  I'm especially concerned by the little uptick in narcotics arrests in late 2016.  If `CausalImpact` doesn't like it it should tell us, we'll see how it goes.
+Not the best, but it's what we've got.  I'm especially concerned by the trend in TABC revenue and the little uptick in narcotics arrests in late 2016.  If `CausalImpact` doesn't like it it should tell us, we'll see how it goes.
 
 (If you're running this at home note that you'll need the development version of `devtools` to install `CausalImpact` due to a bug in the CRAN version of `devtools`.  Get it with `devtools::install_github("hadley/devtools")` )
 
-```{r}
+```{r warning = FALSE}
 dwi.ci <- select(filter(dwi,date>="2012-04-01"),date,count,rev)
 
 pre.ci <- as.Date(c("2012-04-01", "2014-05-31"))
@@ -549,30 +566,25 @@ plot(impact)
 impact
 ```
 
-CausalImpact attributes a 10% drop in DWI's to ridesharing.
+CausalImpact attributes a 10% drop in DWI's to ridesharing, but can we trust it?  Our control data has trends in it.  If we give CasualImpact a 'fake' treatment date when we know nothing happened - say, in the middle of 2013 - it shouldn't report any change in DWI due to this made-up treatment.
 
-UNDERSTAND HOW THIS WORKS MORE AND TALK ABOUT IT
+```{r warning = FALSE}
+dwi.ci <- select(filter(dwi,date>="2012-04-01"),date,count,rev)
 
-Let's look and see if Uber and Lyft leaving had any effect.
+pre.ci <- as.Date(c("2012-04-01", "2013-09-30"))
+post.ci <- as.Date(c("2013-10-01", "2014-05-01"))
 
-```{r}
-dwi.ci <- select(filter(dwi,date >= "2012-04-01"),date,count,rev)
+impact <- CausalImpact(dwi.ci, pre.ci, post.ci,  model.args = list( prior.level.sd = 0.1,nseasons = 12, season.duration = 1))
 
-pre.ci <- as.Date(c("2014-06-01", "2016-04-30"))
-post.ci <- as.Date(c("2016-05-01", "2016-12-31"))
-
-impact <- CausalImpact(dwi.ci, pre.ci, post.ci,model.args = list( prior.level.sd = 0.1))
 plot(impact)
-
-impact
 ```
 
-According to this, voting out Uber and Lyft led to a 3.7% drop in DWI's in the second half of 2016, which seems counter-intuitive, although the confidence range includes as much as a 2% increase in DWI's (or a 10% decrease).  
+Uh oh, an 4% drop.  We may not be able to use these results, at least with TABC revenues as a control.  The upward trend in revenues through our treatment period and the downward trend in DWI may be distorting the model and may always tell us there's a drop in DWI arrests.
 
-It's also possible that TABC revenues are a bad control variable here, let's see if narcotics arrests are better.
+Since we were worried TABC revenues are a bad control variable, let's see if narcotics arrests are better.
 
-```{r}
-dwi.ci.n <- filter(select(dwi,date,count,narc),date > '2012-04-01')
+```{r warning = FALSE}
+dwi.ci.n <- filter(select(dwi,date,count,narc),date >= '2012-04-01')
 
 pre.ci <- as.Date(c("2012-04-01", "2014-05-31"))
 post.ci <- as.Date(c("2014-06-01", "2016-05-09"))
@@ -583,13 +595,13 @@ plot(impact.n)
 impact.n
 ```
 
-Using narcotics arrests as a control, ridesharing can account for a 7% drop in DWI arrests.
+Using narcotics arrests as a control, ridesharing can account for a 7% drop in DWI arrests.  Let's double check on a fake treatment date:
 
-```{r}
-dwi.ci.n <- filter(select(dwi,date,count,narc),date > '2012-04-01')
+```{r warning=FALSE}
+dwi.ci.n <- filter(select(dwi,date,count,narc),date >= '2012-04-01')
 
-pre.ci <- as.Date(c("2014-06-01", "2016-04-30"))
-post.ci <- as.Date(c("2016-05-01", "2016-12-31"))
+pre.ci <- as.Date(c("2012-04-01", "2014-09-30"))
+post.ci <- as.Date(c("2014-10-01", "2016-05-09"))
 
 impact.n <- CausalImpact(dwi.ci.n, pre.ci, post.ci,model.args = list(prior.level.sd = 0.1,nseasons = 12, season.duration = 1))
 plot(impact.n)
@@ -597,15 +609,15 @@ plot(impact.n)
 impact.n
 ```
 
-Again, a counter-intuitive result of a 4% decrease in DWI's post-Uber, with error.
+Same impact.  This control looks like it's no good either.
 
 #Conclusions
 
-Our conclusions were a bit mixed, but promising.  Investigating with RDD suggested that there might be an intervention effect due to Uber and Lyft ceasing ridesharing in Austin, and exponential smoothing techniques suggested measurable drops in DWI counts and DWI counts per MM bar revenue due to the introduction of ridesharing (as well as a small uptick in bar revenue), as well as a subsequent increase in DWI counts and DWI per MM after Uber and Lyft stopped offering rides.
+Our conclusions were a bit mixed, but promising.  Investigating with RDD suggested that there might be an intervention effect due to Uber and Lyft ceasing ridesharing in Austin, and exponential smoothing techniques suggested measurable drops in DWI counts and DWI counts per MM bar revenue due to the introduction of ridesharing (as well as a small uptick in bar revenue), as well as a subsequent increase in DWI counts and DWI per MM after Uber and Lyft stopped offering rides, once you took into account broad trends and periodic cycles in both data sets.
 
-Including narcotics arrest counts or bar revenue as a control for `CausalImpact` analysis was tricky - the controls were not perfect, but still suggested similar increases in DWI counts, but results opposite RDD and exponential smoothing for the post-Uber time frame.
+`CausalImpact` analysis didn't work out to be something we could use - both TABC revenue and narcotics arrests data weren't suitable controls.
 
-Taking into account our results, I'm comfortable attributing a 5-10% drop in DWI in Austin from June 2014 - May 2016 to ridesharing, and a 0-5% increase in DWI from May 2016 - December 2016 to an abrupt cessation of Uber and Lyft's ridesharing services.
+Taking into account our results, the models suggest attributing a 5-10% drop in DWI in Austin from June 2014 - May 2016 to ridesharing, and a 0-5% increase in DWI from May 2016 - December 2016 to an abrupt cessation of Uber and Lyft's ridesharing services.
 
 With more fine-grained time series data, or some certified-extra-accurate data from the APD, I think we could improve on this analysis.
 
