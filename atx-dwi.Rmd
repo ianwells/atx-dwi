@@ -382,6 +382,9 @@ dwi.pre.count.hw <- HoltWinters(dwi.pre.count.ts)
 
 forecast <- predict(dwi.pre.count.hw, n.ahead = 6, prediction.interval = T, level = 0.9)
 
+#acf((dwi.pre.count.hw$fitted - dwi.pre.count.ts)[,1]) #confirm no autocorrelations in residual
+#hist((dwi.pre.count.hw$fitted - dwi.pre.count.ts)[,1],30) #confirm residual looks normal
+
 plot(dwi.pre.count.hw, forecast); lines(dwi.post.count.ts,col='green')
 
 effect <- forecast - dwi.post.count.ts
@@ -390,7 +393,7 @@ pct.effect <- cumsum(effect)/cumsum(forecast)
 pct.effect[6]
 ```
 
-Not bad.  The model is a little rough - it fits it approximately but fails to catch all the peaks - the data may not have been periodic enough for this model to be effective, or there may be too much non-seasonal noise.  However, using the data from January 2008 to October 2013, it looks like we can **predict cumulative DWI's for the next 6 months within 1.5%.**  That should make us feel better about the numbers coming out, with the caveat that cumulative DWI predictions over longer time frames may be more accurate than picking individual months.  Let's move the end of the training data to May 2014 (the last month without Uber and Lyft) and see how things look.
+Not bad.  The model is a little rough - it fits it approximately but fails to catch all the peaks - the data may not have been periodic enough for this model to be effective, or there may be too much non-seasonal noise.  The residuals are roughly normally distributed and have no autocorrelations, which is what you want.  Using the data from January 2008 to October 2013, it looks like we can **predict cumulative DWI's for the next 6 months within 1.5%.**  That should make us feel better about the numbers coming out, with the caveat that cumulative DWI predictions over longer time frames may be more accurate than picking individual months.  Let's move the end of the training data to May 2014 (the last month without Uber and Lyft) and see how things look.
 
 ```{r warnings=FALSE}
 dwi.pre <- filter(dwi,date < '2014-05-31')
@@ -402,6 +405,9 @@ dwi.post.count.ts <- ts(dwi.post$count, start = c(2014, 6), frequency = 12)
 dwi.pre.count.hw <- HoltWinters(dwi.pre.count.ts)
 
 forecast <- predict(dwi.pre.count.hw, n.ahead = 24, prediction.interval = T, level = 0.9)
+
+#acf((dwi.pre.count.hw$fitted - dwi.pre.count.ts)[,1]) #confirm no autocorrelations in residual
+#hist((dwi.pre.count.hw$fitted - dwi.pre.count.ts)[,1],30) #confirm residual looks normal
 
 plot(dwi.pre.count.hw, forecast); lines(dwi.post.count.ts,col='green')
 
@@ -619,7 +625,7 @@ Our conclusions were a bit mixed, but promising.  Investigating with RDD suggest
 
 #Future Work and Caveats
 
-With more fine-grained time series data, or some certified-extra-accurate data from the APD, I think we could improve on this analysis.  My original thoughts were to see if ridesharing had a more specific effect on certain kinds of DWI's - say specifically 1st offenses - and in certain places, but the data was not complete enough for that.  Additionally, Austin's crime data in general may be unreliable (see http://www.mystatesman.com/news/local/why-the-austin-police-department-dwi-crash-statistics-keep-changing/GNv8LTrbEgTd7KEObnPwgL/), although we did compare two sources for crime data.  Updated data from after the treatement period could alter the models' results substantially.
+With more fine-grained time series data, or some certified-extra-accurate data from the APD, I think we could improve on this analysis.  My original thoughts were to see if ridesharing had a more specific effect on certain kinds of DWI's - say specifically 1st offenses - and in certain places, but the data was not complete enough for that.  Additionally, Austin's crime data in general may be unreliable (see http://www.mystatesman.com/news/local/why-the-austin-police-department-dwi-crash-statistics-keep-changing/GNv8LTrbEgTd7KEObnPwgL/), although we did compare two sources for crime data.  Updated data from after the treatment period could alter the models' results substantially.
 
 #References
 
