@@ -713,7 +713,7 @@ ggplot(data = filter(har,date < '2015-01-01'), aes(factor(month(date)),weight = 
 
 That brings the mean down considerably and levels out the trend - although the histogram doesn't match our incident report DWI histogram.
 
-If we were to further sample this data for likely drunk driving hit-and-runs, we'd have to weight it to match the DWI histogram, and then apply some flat 'this many hit-and-runs in prime hit-and-run timeframes involve alcohol' percentage.  The NHTSA says that in 2003, 5% of all accidents during the week and 13% during the weekend involved alcohol (all accidents, not just fatal ones), rather than filter again on day-of-weeks we'll just call it 25% to compensate for the filtering we did.
+If we were to further sample this data for likely drunk driving hit-and-runs, we'd have to weight it to match the DWI histogram, and then apply some flat 'this many hit-and-runs in prime hit-and-run timeframes involve alcohol' percentage.  I don't have a number for that, we'll just call it 20%.
 
 ```{r}
 filter<-data.frame(month=c(1,2,3,4,5,6,7,8,9,10,11,12),trim=c(1,.70,.7,.60,.64,.56,.58,.62,.76,.72,.73,.81))
@@ -723,14 +723,14 @@ har$count <- har$count * har$trim
 ggplot(data = filter(har,date < '2015-01-01'), aes(factor(month(date)),weight = count) ) + geom_bar()
 har$trim <- NULL
 
-har$count = har$count * .25
+har$count = har$count * .20
 
 qplot(x=date,y=count,data = har)
 ```
 
-And it's less than the difference between the APD Incident Report and the Chief's Monthly Report.  I suspect that a more official estimate of hit-and-run drunk driving may have made it into the Chief's report, accounting for the discrepancy.
+And it's less than the difference between the APD Incident Report and the Chief's Monthly Report.  Maybe a more official estimate of hit-and-run drunk driving may have made it into the Chief's report, accounting for the discrepancy.
 
-For the range 2008-2012, the difference is small, in line with the prevailing decreasing trend, and as it contributes only to seasonal models I'm comfortable discounting it entirely.  For the months in 2015 and 2016, I'm not sure what to do with it - I don't think it's a good idea to add it to the Chief's report, and it only makes up 10-50% of the difference between the APD Incident Report and the Chief's report - I think it's safe to ignore it and if more accurate data presents itself, test our conclusions again.
+For the range 2008-2012, the difference is small, in line with the prevailing decreasing trend, and as it contributes only to seasonal models I'm comfortable discounting it entirely.  For the months in 2015 and 2016, I'm not sure what to do with it - I don't think it's a good idea to add it to the Chief's report, and it only makes up 10-60% of the difference between the APD Incident Report and the Chief's report, and I don't even have it for the rest of the time frame - I think it's safe to ignore it and if more accurate data presents itself, test our conclusions again.
 
 #References
 
