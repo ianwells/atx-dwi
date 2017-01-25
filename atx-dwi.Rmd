@@ -399,6 +399,8 @@ pct.effect <- cumsum(effect)/cumsum(forecast)
 pct.effect[6]
 ```
 
+What we're looking at here is real data before our treatment (in black), and a fitted model with a forecast extending into our treatment (in red), with two 90% confidence intervals (in blue), and real treatment data (in green).  We'll plot all our Holt-Winters models like this.
+
 Not bad.  The model is a little rough - it fits it approximately but fails to catch all the peaks - the data may not have been periodic enough for this model to be effective, or there may be too much non-seasonal noise.
 
 A failure to fully model the seasonality would have shown up as an autocorrelation or non-normality in the residuals - the difference between the model's fit and the real data, over the set of data we used to train it.  If you're curious you can uncomment the `acf` and `hist` calls and see for yourself - otherwise trust me that I've verified that this model fully captures the seasonality available in the training set.
@@ -445,7 +447,9 @@ pct.effect.ets[12]
 pct.effect.ets[3]
 ```
 
-With much tighter margin of error, `ets` suggests **a drop of 8.5% over 12 months** (9.7 over the full 24) and 5.6% over 3 months.
+This plot looks like our Holt-Winters plots, but omits the fitted curve before the treatment, and the forecast is in blue.
+
+With much tighter confidence intervals, `ets` suggests **a drop of 8.5% over 12 months** (9.7 over the full 24) and 5.6% over 3 months.
 
 I'd like to look at our DWI per Revenue variable, but first we have to answer, how much did ridesharing affect bar revenues?  If it's a lot, we'll have a hard time attributing a change in DWI/$ to a change in DWI's.
 
