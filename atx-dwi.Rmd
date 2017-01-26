@@ -399,7 +399,7 @@ pct.effect <- cumsum(effect)/cumsum(forecast)
 pct.effect[6]
 ```
 
-What we're looking at here is real data before our treatment (in black), and a fitted model with a forecast extending into our treatment (in red), with two 90% confidence intervals (in blue), and real treatment data (in green).  We'll plot all our Holt-Winters models like this.
+What we're looking at here is real data before our treatment (in black), and a fitted model with a forecast extending into our treatment (in red), with two 90% confidence intervals (these are called prediction intervals in this context, they're in blue), and real treatment data (in green).  We'll plot all our Holt-Winters models like this.
 
 Not bad.  The model is a little rough - it fits it approximately but fails to catch all the peaks - the data may not have been periodic enough for this model to be effective, or there may be too much non-seasonal noise.
 
@@ -432,6 +432,21 @@ pct.effect[3]
 
 For the first 12 months Uber and Lyft were available in Austin, the **real cumulative DWI count was 440 arrests less than the predicted count - an effect of about 7%** (over the whole 24-month period, we see 8%).  For the first 3 months, where our error bars are much tighter (and perhaps while Uber and Lyft were still growing in capacity), we're only 24 DWI's less than predicted - a decrease of 1.6%.
 
+Now you're probably wondering - the real values are still well within these prediction bands, what does that mean?  If our real data was a few points, it would mean we probably couldn't count on it to tell us anything - it could be well within the model's tolerance for random chance, and we wouldn't be seeing a treatment effect, just a coincidence.  But we have a lot of points, and all of them are below the forecast value - can we tell if these values are meaningfully different than the forecast?
+
+We can.  Since we've validated that our residuals are normally distributed, we can use a t-test to check if the fit-vs-training residuals are different from the forecast-vs-real residuals, which would tell us that the treatment effect we're seeing is real, with some degree of confidence.
+
+```{r}
+pre.residual <- as.numeric((dwi.pre.count.hw$fitted - dwi.pre.count.ts)[,1])
+post.residual <- effect[,1]
+t.test(pre.residual,post.residual)
+
+#qplot(as.numeric(pre.residual), geom="density")
+#qplot(as.numeric(post.residual), geom="density")
+```
+
+The p-value of 0.00006 tells us these results are significant.  We'll keep an eye on these behind the scenes.
+
 We can try a potentially better-fitting model (really, optimized for a different criterion) from the exponential smoothing family of models with `ets`.
 
 ```{r warnings=FALSE}
@@ -442,6 +457,10 @@ plot(forecast.ets); lines(dwi.post.count.ts,col='green')
 
 effect.ets <- forecast.ets$mean - dwi.post.count.ts
 
+#pre.residual <- as.numeric((dwi.pre.count.ets$fitted - dwi.pre.count.ets)[,1])
+#post.residual <- as.numeric(effect.ets)
+#t.test(pre.residual,post.residual) #e-7
+
 pct.effect.ets <- cumsum(effect.ets)/cumsum(forecast.ets$mean)
 pct.effect.ets[12]
 pct.effect.ets[3]
@@ -449,7 +468,7 @@ pct.effect.ets[3]
 
 This plot looks like our Holt-Winters plots, but omits the fitted curve before the treatment, and the forecast is in blue.
 
-With much tighter confidence intervals, `ets` suggests **a drop of 8.5% over 12 months** (9.7 over the full 24) and 5.6% over 3 months.
+With much tighter prediction intervals, `ets` suggests **a drop of 8.5% over 12 months** (9.7 over the full 24) and 5.6% over 3 months.
 
 I'd like to look at our DWI per Revenue variable, but first we have to answer, how much did ridesharing affect bar revenues?  If it's a lot, we'll have a hard time attributing a change in DWI/$ to a change in DWI's.
 
@@ -463,6 +482,10 @@ forecast.ets <- predict(dwi.pre.rev.ets, n.ahead = 24, prediction.interval = T, 
 plot(forecast.ets); lines(dwi.post.rev.ts,col='green')
 
 effect.ets <- forecast.ets$mean - dwi.post.rev.ts
+
+#pre.residual <- as.numeric((dwi.pre.rev.ets$fitted - dwi.pre.rev.ts))
+#post.residual <- as.numeric(effect.ets)
+#t.test(pre.residual,post.residual) #.001
 
 pct.effect.ets <- cumsum(effect.ets)/cumsum(forecast.ets$mean)
 pct.effect.ets[3]
@@ -481,6 +504,11 @@ forecast.ets <- predict(dwi.pre.count_per_mm.ets, n.ahead = 24, prediction.inter
 plot(forecast.ets); lines(dwi.post.count_per_mm.ts,col='green')
 
 effect.ets <- forecast.ets$mean - dwi.post.count_per_mm.ts
+
+#pre.residual <- as.numeric((dwi.pre.count_per_mm.ets$fitted - dwi.pre.count_per_mm.ts))
+#post.residual <- as.numeric(effect.ets)
+#t.test(pre.residual,post.residual) #.0007
+
 
 pct.effect.ets <- cumsum(effect.ets)/cumsum(forecast.ets$mean)
 pct.effect.ets[12]
@@ -508,12 +536,17 @@ forecast <- predict(dwi.during.count.hw, n.ahead = 12, prediction.interval = T, 
 plot(dwi.during.count.hw, forecast); lines(dwi.exit.count.ts,col='green')
 
 effect <- forecast - dwi.exit.count.ts
+
+#pre.residual <- as.numeric((dwi.during.count.hw$fitted - dwi.during.count.ts))
+#post.residual <- as.numeric(effect)
+#t.test(pre.residual,post.residual) #e-9
+
 pct.effect <- cumsum(effect)/cumsum(forecast)
 pct.effect[7]
 pct.effect[3]
 ```
 
-This looks better - the model fits better, the confidence interval is tighter, and the treatment effect is 80 DWI's over the first 3 months, a decrease of about 6%.  In other words, **not having Uber and Lyft may have resulted in an additional 80 arrests in the first 3 months**. After 7 months (taking us to the end of our data), we observe a smaller 5% decrease - perhaps we can attribute this to the smaller ridesharing services (like Fare) that sprung up in Austin after Uber and Lyft stopped offering rides.
+This looks better - the model fits better (we'll stick with this over `ets`), the confidence interval is tighter, and the treatment effect is 80 DWI's over the first 3 months, a decrease of about 6%.  In other words, **not having Uber and Lyft may have resulted in an additional 80 arrests in the first 3 months**. After 7 months (taking us to the end of our data), we observe a smaller 5% decrease - perhaps we can attribute this to the smaller ridesharing services (like Fare) that sprung up in Austin after Uber and Lyft stopped offering rides.
 
 This gives us a number to associate with the qualitative change we saw with `rdd` earlier.  Cool!
 
@@ -529,6 +562,11 @@ forecast <- predict(dwi.during.rev.hw, n.ahead = 12, prediction.interval = T, le
 plot(dwi.during.rev.hw, forecast); lines(dwi.exit.rev.ts,col='green')
 
 effect <- forecast - dwi.exit.rev.ts
+
+#pre.residual <- as.numeric((dwi.during.rev.hw$fitted - dwi.during.rev.ts))
+#post.residual <- as.numeric(effect)
+#t.test(pre.residual,post.residual) #0.0004
+
 pct.effect <- cumsum(effect)/cumsum(forecast)
 pct.effect[7]
 pct.effect[3]
@@ -546,6 +584,12 @@ forecast <- predict(dwi.during.count_per_mm.hw, n.ahead = 12, prediction.interva
 plot(dwi.during.count_per_mm.hw, forecast); lines(dwi.exit.count_per_mm.ts,col='green')
 
 effect <- forecast - dwi.exit.count_per_mm.ts
+
+#pre.residual <- as.numeric((dwi.during.count_per_mm.hw$fitted - dwi.during.count_per_mm.ts))
+#post.residual <- as.numeric(effect)
+#t.test(pre.residual,post.residual) #0.018 <- this one is a little high but still acceptable
+
+
 pct.effect <- cumsum(effect)/cumsum(forecast)
 pct.effect[7]
 pct.effect[3]
@@ -574,6 +618,8 @@ Not the best, but it's what we've got.  I'm especially concerned by the trend in
 
 (If you're running this at home note that you'll need the development version of `devtools` to install `CausalImpact` due to a bug in the CRAN version of `devtools`.  Get it with `devtools::install_github("hadley/devtools")` )
 
+###TABC as a Control
+
 ```{r warning = FALSE}
 dwi.ci <- select(filter(dwi,date>="2012-04-01"),date,count,rev)
 
@@ -587,7 +633,7 @@ plot(impact)
 impact
 ```
 
-CausalImpact attributes a 10% drop in DWI's to ridesharing, but can we trust it?  We validated Holt-Winters, let's validate this as well. 
+CausalImpact attributes a 10% drop in DWI's to ridesharing (with 99.7% certainty, it says), but can we trust it?  We validated Holt-Winters, let's validate this as well. 
 
 Our control data might have trends and other unrelated treatments in it.  If we give CasualImpact a 'fake' treatment date when we know nothing happened - say, in the middle of 2013 - it shouldn't report any change in DWI due to this (hopefully) made-up treatment.
 
@@ -602,7 +648,9 @@ impact <- CausalImpact(dwi.ci, pre.ci, post.ci,  model.args = list( prior.level.
 plot(impact)
 ```
 
-Uh oh, a 4% drop.  That's not 10%, but it's more than the 0% we'd expect.  We may not be able to use these results as they are, at least with TABC revenues as a control.  The upward trend in revenues through our treatment period and the downward trend in DWI may be distorting the model and may always tell us there's a drop in DWI arrests.
+Uh oh, a 4% drop (99.1% sure, it'll tell you if you check).  That's not 10%, but it's more than the 0% we'd expect.  We may not be able to use these results as they are, at least with TABC revenues as a control.  The upward trend in revenues through our treatment period and the downward trend in DWI may be distorting the model and may always tell us there's a drop in DWI arrests.
+
+###Narcotics Arrests as a Control
 
 Since we were worried TABC revenues are a bad control variable, let's see if narcotics arrests are any better.
 
@@ -632,9 +680,40 @@ plot(impact.n)
 impact.n
 ```
 
-Same impact.  This control looks like it's no good either. 
+Same impact.  83% sure though - which most statisticians will throw out, and the conclusion for the real treatment is 92%, which isn't very hot.  This control looks like it's **no good either.** 
 
-Since we apparently don't have a good control series, **we can't really trust any analysis with this method.**  We can revisit it if we get a better one.
+###Just DWI Counts
+
+Since we apparently don't have a good control series, let's see how far we can get without one. `CausalImpact` cautions us against this, maybe we'll find out why.
+
+```{r}
+dwi.ci.n <- filter(select(dwi,date,count),date >= '2012-04-01')
+
+pre.ci <- as.Date(c("2012-04-01", "2014-05-31"))
+post.ci <- as.Date(c("2014-06-01", "2016-05-09"))
+
+impact.n <- CausalImpact(dwi.ci.n, pre.ci, post.ci,model.args = list(prior.level.sd = 0.1,nseasons = 12, season.duration = 1))
+
+plot(impact.n)
+
+impact.n
+```
+
+8% impact with 98.4% certainty.
+
+```{r warning=FALSE}
+dwi.ci.n <- filter(select(dwi,date,count),date >= '2012-04-01')
+
+pre.ci <- as.Date(c("2012-04-01", "2014-11-30"))
+post.ci <- as.Date(c("2014-12-01", "2016-05-09"))
+
+impact.n <- CausalImpact(dwi.ci.n, pre.ci, post.ci,model.args = list(prior.level.sd = 0.1, nseasons = 12, season.duration = 1))
+plot(impact.n)
+
+impact.n
+```
+
+Same thing.  We'll have to revisit this model if we get more data.
 
 #Conclusions
 
