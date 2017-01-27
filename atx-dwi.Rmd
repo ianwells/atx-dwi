@@ -380,7 +380,8 @@ dwi.pre <- filter(dwi,date < '2013-10-31')
 dwi.post <- filter(dwi,date > '2013-10-31')
 
 dwi.pre.count.ts <- ts(dwi.pre$count, start = c(2008, 1), frequency = 12)
-dwi.post.count.ts <- ts(dwi.post$count, start = c(2013, 11), frequency = 12)
+dwi.post.count.ts <- ts(dwi.post$count, start = c(2013, 6), frequency = 12)
+#dwi.post.count.ts <- ts(dwi.post$count, start = c(2013, 11), frequency = 12) futher back forecast
 
 dwi.pre.count.hw <- HoltWinters(dwi.pre.count.ts)
 
@@ -393,6 +394,11 @@ plot(dwi.pre.count.hw, forecast); lines(dwi.post.count.ts,col='green')
 
 effect <- forecast - dwi.post.count.ts
 
+#ttest for 12month
+#pre.residual <- as.numeric((dwi.pre.count.hw$fitted - dwi.pre.count.ts)[,1])
+#post.residual <- as.numeric(effect)
+#t.test(pre.residual,post.residual) #.59 too high
+
 pct.effect <- cumsum(effect)/cumsum(forecast)
 pct.effect[6]
 ```
@@ -403,7 +409,7 @@ Not bad.  The model is a little rough - it fits it approximately but fails to ca
 
 A failure to fully model the seasonality would have shown up as an autocorrelation or non-normality in the residuals - the difference between the model's fit and the real data, over the set of data we used to train it.  If you're curious you can uncomment the `acf` and `hist` calls and see for yourself - otherwise trust me that I've verified that this model fully captures the seasonality available in the training set.
 
-Using the data from January 2008 to October 2013, it looks like we can **predict cumulative DWI's for the next 6 months within 1.5%.**  That's pretty close, and that should make us feel better about the numbers coming out, with the caveat that cumulative DWI predictions over longer time frames may be more accurate than picking individual months.  Let's move the end of the training data to May 2014 (the last month without Uber and Lyft) and see how things look (we'll improve the model a little more by adding those extra 6 months to the training set as well).
+Using the data from January 2008 to October 2013, it looks like we can **predict cumulative DWI's for the next 6 months within 1.5%.**  That's pretty close, and that should make us feel better about the numbers coming out, with the caveat that cumulative DWI predictions over longer time frames may be more accurate than picking individual months. (If you're reading the commented-out bits of code, you'll note that I also validated predictions 12 months out within 1%).  Let's move the end of the training data to May 2014 (the last month without Uber and Lyft) and see how things look (we'll improve the model a little more by adding those extra 6 months to the training set as well).
 
 ```{r warning=FALSE}
 dwi.pre <- filter(dwi,date < '2014-05-31')
@@ -612,7 +618,7 @@ uber <- geom_rect(mapping = aes(xmin=as.Date('2014-06-01'), xmax = as.Date('2016
 ggplot(data=melt(select(filter(dwi,date>="2012-04-01"),narc,count,rev,date),id = 'date'), mapping = aes(x=date, y=value, color = variable)) + uber + geom_point() + geom_smooth(method = 'loess', se = FALSE)
 ```
 
-Not the best, but it's what we've got.  I'm especially concerned by the trend in TABC revenue and the little uptick in narcotics arrests in late 2016.  Major drug busts can change the availability of drugs in a city overnight, and could reduce the number of drug arrests in subsequent months.  If `CausalImpact` doesn't like it it should tell us, we'll see how it goes.
+Not the best, but it's what we've got.  I'm especially concerned by the trend in TABC revenue and the little uptick in narcotics arrests in late 2016, and generally concerned about the jumpiness of the data.  Major drug busts can change the availability of drugs in a city overnight, and could reduce the number of drug arrests in subsequent months.  If `CausalImpact` doesn't like it it should tell us, we'll see how it goes.
 
 (If you're running this at home note that you'll need the development version of `devtools` to install `CausalImpact` due to a bug in the CRAN version of `devtools`.  Get it with `devtools::install_github("hadley/devtools")` )
 
@@ -648,6 +654,8 @@ impact
 ```
 
 Alright, a 2.4% drop (80% sure, it'll tell you if you check, which isn't the best).  That's not a lot, but it's more than the 0% we'd expect.  We may not be able to use these results as they are, at least with TABC revenues as a control.  The upward trend in revenues through our treatment period and the downward trend in DWI may be distorting the model and may always tell us there's a drop in DWI arrests.
+
+I'll note here that other randomly-picked dates for the fake treatment might show different results - we've compensated for the higher-than-normal variance in our control data, but if you land on a peak `CausalImpact` can tell you there's more of a drop - up to the scale of the real treatment, but with less probability of a causal effect - or no drop at all, or even a slight rise, all with low posterior probabilities.  If you're inclined, I encourage you to play around with it.  I've picked this one because it's close to a typical value for the pre-treated range - but a lack of a consistent result from this test should make us feel a little weird about how well suited our data is to this model.
 
 ###Narcotics Arrests as a Control
 
@@ -707,7 +715,7 @@ plot(impact.b)
 impact.b
 ```
 
-A 3.3% effect at 88%.  We're getting semi-workable results - the real inflection date with controls just about matches our exponential smoothing models, and we can sort of discount the fake inflection we're testing with, but not very confidently.  We could mess around with a custom multi-seasonal BSTS model and feed it to `CausalImpact`
+A 3.3% effect at 88%.  We're getting semi-workable results - the real inflection date with controls just about matches our exponential smoothing models, and we can sort of discount the fake inflection we're testing with, but not very confidently.  We could mess around with a custom multi-seasonal BSTS model and feed it to `CausalImpact`, I'll call that an area for future testing.
 
 We'll have to revisit this model if we get more data.
 
@@ -809,9 +817,9 @@ har$count = har$count * .20
 qplot(x=date,y=count,data = har)
 ```
 
-And it's less than the difference between the APD Incident Report and the Chief's Monthly Report.  Maybe a more official estimate of hit-and-run drunk driving may have made it into the Chief's report, accounting for the discrepancy.
+And it's less than or about the same as the difference between the APD Incident Report and the Chief's Monthly Report.  Maybe a more official estimate of hit-and-run drunk driving may have made it into the Chief's report, accounting for the discrepancy.
 
-For the range 2008-2012, the difference is small, in line with the prevailing decreasing trend, and as it contributes only to seasonal models I'm comfortable discounting it entirely.  For the months in 2015 and 2016, I'm not sure what to do with it - I don't think it's a good idea to add it to the Chief's report, and it only makes up 10-60% of the difference between the APD Incident Report and the Chief's report, and I don't even have it for the rest of the time frame - I think it's safe to ignore it and if more accurate data presents itself, test our conclusions again.
+For the range 2008-2012, the difference is small, in line with the prevailing decreasing trend, and as it contributes only to seasonal models I'm comfortable discounting it entirely.  For the months in 2015 and 2016, I'm not sure what to do with it - I don't think it's a good idea to add it to the Chief's report, and if it only makes up the difference between the APD Incident Report and the Chief's report, and since I don't even have it for the rest of the time frame - I think it's safe to ignore it and if more accurate data presents itself, test our conclusions again.
 
 #References
 
