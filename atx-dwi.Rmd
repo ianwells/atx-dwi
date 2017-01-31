@@ -823,9 +823,9 @@ For the range 2008-2012, the difference is small, in line with the prevailing de
 
 ##Downtown and All Other Arrest Data
 
-Late in the development of this writeup I noticed that the Chief's Monthly Report was broken into broad geographic sections, and also considered that the 'all other type 2 crimes' count available on the report would be a better control than narcotics arrests, as it might have a lower variance.  I'll quickly look at some of this data.
+Late in the development of this writeup I noticed that the Chief's Monthly Report was broken into broad geographic sections, and also considered that the 'all other Part 2 crimes' count available on the report would be a better control than narcotics arrests, as it might have a lower variance, and be a better representation of 'background' crime.  I'll quickly look at some of this data.
 
-```{r}
+```{r warning = FALSE}
 bonus <- read.csv('data/other.csv')
 head(bonus)
 
@@ -859,12 +859,14 @@ effect <- forecast - bonus.post.ts
 pct.effect <- cumsum(effect)/cumsum(forecast)
 pct.effect[24]
 ```
-Cool. Some seasonailty, a plot that looks like a scaled version of the full DWI plot, and a sense that downtown DWI's generally account for 10-14% of all DWI's in Austin.
+Cool. Some seasonality, a plot that looks like a scaled version of the full DWI plot, and a sense that downtown DWI's generally account for 10-14% of all DWI's in Austin.
 
 A quick glance at just the downtown data suggests that ridesharing had the effect of lowering DWI counts downtown by 14% over 24 months (9% over 12.)
 
-```{r}
-ggplot(data = bonus, aes(y=other,x=date)) + geom_point()
+```{r warning = FALSE}
+ggplot(data = bonus, aes(y=other,x=date)) + geom_point() + geom_smooth()
+
+ggplot(data = bonus, aes(factor(month(date)),weight = other) ) + geom_bar()
 
 bonus.b <- filter(select(bonus,date,count,other),date >= '2012-05-01')
 
@@ -885,7 +887,7 @@ plot(impact.b)
 impact.b
 ```
 
-Other type-2 crimes seem to be on the decline.  `CausalImpact` tells us that we see about a 6% drop in DWI, and it validates much better than our other controls.  This one is promising for more research, so it's going up to the top section.
+Other Part 2 crimes seem to be on the decline, although there looks like there might be an inflection in late 2013 - early 2014.  We see a little seasonality, possibly consistent with studies that have shown a link between warm weather and crime.  `CausalImpact` tells us that we see about a 6% drop in DWI, and it validates much better than our other controls for our selected fake intervention date, but not much better for other dates.  I'll leave it here for future research.
 
 #References
 
