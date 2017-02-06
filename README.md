@@ -1,7 +1,9 @@
 # atx-dwi
 Playing around with Austin DWI data and TABC tax data.
 
-This is a work in progress!  Don't quote me on any of this yet.
+Knit is here:
+
+http://rpubs.com/ianwells/247645
 
 Disclaimers from Data Sources:
 
