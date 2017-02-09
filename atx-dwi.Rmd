@@ -1,7 +1,7 @@
 ---
 title: "Messing Around with DWI Arrests, TABC Mixed Beverage Taxes, and Ridesharing, in Austin, TX"
 author: "Ian Wells (@ianwells)"
-date: "2016-01-26"
+date: "2017-01-26"
 output:
   html_notebook:
     highlight: tango
@@ -26,7 +26,6 @@ library(forecast)
 select <- dplyr::select
 
 ```
-
 
 ##Background
 
