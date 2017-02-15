@@ -5,6 +5,12 @@ Knit is here:
 
 http://rpubs.com/ianwells/247645
 
+Discussion here:
+
+https://www.reddit.com/r/Austin/comments/5susuo/messing_around_with_dwi_arrests_tabc_mixed/
+
+I made the frontpage of r/Austin and r/DataIsBeautiful!
+
 Disclaimers from Data Sources:
 
 APD:
